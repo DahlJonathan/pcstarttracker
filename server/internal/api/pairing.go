@@ -2,6 +2,7 @@ package api
 
 import (
 	"database/sql"
+	"log"
 	"net/http"
 	"strings"
 	"time"
@@ -148,6 +149,8 @@ func (s *Server) handlePairClaim(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	log.Printf("pairing claimed: device %q (%s) bound to user %d", deviceName, deviceID, uid)
+
 	writeJSON(w, http.StatusOK, models.PairClaimResponse{
 		DeviceID:   deviceID,
 		DeviceName: deviceName,
@@ -197,6 +200,7 @@ func (s *Server) handlePairStatus(w http.ResponseWriter, r *http.Request) {
 		// Clear the token so it is delivered only once.
 		_, _ = s.DB.ExecContext(r.Context(),
 			`UPDATE pairing_tokens SET device_token = NULL WHERE token = ?`, token)
+		log.Printf("pairing complete: agent for device %s retrieved its token", deviceID)
 	}
 	writeJSON(w, http.StatusOK, resp)
 }

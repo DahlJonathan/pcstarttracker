@@ -43,6 +43,8 @@ func (s *Server) Router() http.Handler {
 
 	// User-authenticated dashboard.
 	mux.Handle("GET /api/v1/devices", s.requireUser(http.HandlerFunc(s.handleListDevices)))
+	mux.Handle("GET /api/v1/devices/{id}/history", s.requireUser(http.HandlerFunc(s.handleDeviceHistory)))
+	mux.Handle("DELETE /api/v1/devices/{id}", s.requireUser(http.HandlerFunc(s.handleDeleteDevice)))
 
 	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)

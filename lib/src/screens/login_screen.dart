@@ -51,47 +51,11 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 
-  Future<void> _editServerUrl() async {
-    final state = context.read<AppState>();
-    final controller = TextEditingController(text: state.baseUrl);
-    final url = await showDialog<String>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Server URL'),
-        content: TextField(
-          controller: controller,
-          keyboardType: TextInputType.url,
-          decoration: const InputDecoration(hintText: 'http://10.0.2.2:8080'),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(ctx, controller.text),
-            child: const Text('Save'),
-          ),
-        ],
-      ),
-    );
-    if (url != null && url.isNotEmpty) {
-      await state.setBaseUrl(url);
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         title: Text(_isSignup ? 'Create account' : 'Sign in'),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.settings_outlined),
-            tooltip: 'Server settings',
-            onPressed: _editServerUrl,
-          ),
-        ],
       ),
       body: Center(
         child: SingleChildScrollView(

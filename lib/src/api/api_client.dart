@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 
 import '../models/device.dart';
+import '../models/device_event.dart';
 
 /// Raised when the backend returns a non-2xx response.
 class ApiException implements Exception {
@@ -68,6 +69,29 @@ class ApiClient {
       body: jsonEncode({'pairing_token': ?pairingToken, 'code': ?code}),
     );
     _decode(res);
+  }
+
+  /// Unpairs (deletes) a device owned by the signed-in user.
+  Future<void> deleteDevice(String id) async {
+    final res = await http.delete(
+      _uri('/api/v1/devices/$id'),
+      headers: _headers,
+    );
+    if (res.statusCode == 204) return;
+    _decode(res);
+  }
+
+  /// Fetches a device's boot/shutdown history, newest first.
+  Future<List<DeviceEvent>> listDeviceEvents(String id) async {
+    final res = await http.get(
+      _uri('/api/v1/devices/$id/history'),
+      headers: _headers,
+    );
+    final body = _decode(res);
+    final list = (body['events'] as List<dynamic>? ?? const []);
+    return list
+        .map((e) => DeviceEvent.fromJson(e as Map<String, dynamic>))
+        .toList(growable: false);
   }
 
   Map<String, dynamic> _decode(http.Response res) {

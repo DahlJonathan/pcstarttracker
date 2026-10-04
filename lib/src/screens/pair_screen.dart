@@ -72,7 +72,12 @@ class _PairScreenState extends State<PairScreen> {
             child: Stack(
               alignment: Alignment.center,
               children: [
-                MobileScanner(controller: _scanner, onDetect: _onDetect),
+                MobileScanner(
+                  controller: _scanner,
+                  onDetect: _onDetect,
+                  errorBuilder: (context, error, child) =>
+                      _CameraError(error: error, onRetry: _scanner.start),
+                ),
                 _ScannerOverlay(),
                 if (_busy) const CircularProgressIndicator(),
               ],
@@ -148,6 +153,50 @@ class _ScannerOverlay extends StatelessWidget {
           border: Border.all(color: Colors.white, width: 3),
           borderRadius: BorderRadius.circular(20),
         ),
+      ),
+    );
+  }
+}
+
+/// Shown when the camera cannot start (most often a denied permission).
+class _CameraError extends StatelessWidget {
+  const _CameraError({required this.error, required this.onRetry});
+
+  final MobileScannerException error;
+  final Future<void> Function() onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    final denied =
+        error.errorCode == MobileScannerErrorCode.permissionDenied;
+    return Container(
+      color: Colors.black,
+      padding: const EdgeInsets.all(24),
+      alignment: Alignment.center,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(Icons.no_photography_outlined,
+              size: 56, color: Colors.white70),
+          const SizedBox(height: 16),
+          Text(
+            denied
+                ? 'Camera permission is required to scan the QR code.\n'
+                    'Enable Camera for this app in your phone settings, '
+                    'then tap Try again. You can also enter the 6-digit '
+                    'code below instead.'
+                : 'The camera could not be started.\n'
+                    'You can enter the 6-digit code below instead.',
+            textAlign: TextAlign.center,
+            style: const TextStyle(color: Colors.white),
+          ),
+          const SizedBox(height: 20),
+          FilledButton.icon(
+            onPressed: onRetry,
+            icon: const Icon(Icons.refresh),
+            label: const Text('Try again'),
+          ),
+        ],
       ),
     );
   }

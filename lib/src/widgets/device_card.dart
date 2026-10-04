@@ -4,9 +4,11 @@ import '../models/device.dart';
 
 /// A dashboard card showing one PC's name, status indicator and timestamps.
 class DeviceCard extends StatelessWidget {
-  const DeviceCard({super.key, required this.device});
+  const DeviceCard({super.key, required this.device, this.onDelete, this.onTap});
 
   final Device device;
+  final VoidCallback? onDelete;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
@@ -18,47 +20,69 @@ class DeviceCard extends StatelessWidget {
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       elevation: 1,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Row(
-          children: [
-            _StatusDot(color: color),
-            const SizedBox(width: 16),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          device.name,
-                          style: Theme.of(context).textTheme.titleMedium
-                              ?.copyWith(fontWeight: FontWeight.w600),
-                          overflow: TextOverflow.ellipsis,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(16),
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Row(
+            children: [
+              _StatusDot(color: color),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            device.name,
+                            style: Theme.of(context).textTheme.titleMedium
+                                ?.copyWith(fontWeight: FontWeight.w600),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        _StatusPill(label: label, color: color),
+                        if (onDelete != null)
+                          PopupMenuButton<String>(
+                            icon: const Icon(Icons.more_vert),
+                            tooltip: 'Device options',
+                            onSelected: (v) {
+                              if (v == 'delete') onDelete!();
+                            },
+                            itemBuilder: (_) => const [
+                              PopupMenuItem(
+                                value: 'delete',
+                                child: ListTile(
+                                  leading: Icon(Icons.delete_outline),
+                                  title: Text('Remove device'),
+                                  contentPadding: EdgeInsets.zero,
+                                ),
+                              ),
+                            ],
+                          ),
+                      ],
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      device.statusDetail,
+                      style: Theme.of(context).textTheme.bodyMedium,
+                    ),
+                    if (device.exactTimestamp.isNotEmpty) ...[
+                      const SizedBox(height: 2),
+                      Text(
+                        device.exactTimestamp,
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: Theme.of(context).colorScheme.outline,
                         ),
                       ),
-                      _StatusPill(label: label, color: color),
                     ],
-                  ),
-                  const SizedBox(height: 6),
-                  Text(
-                    device.statusDetail,
-                    style: Theme.of(context).textTheme.bodyMedium,
-                  ),
-                  if (device.exactTimestamp.isNotEmpty) ...[
-                    const SizedBox(height: 2),
-                    Text(
-                      device.exactTimestamp,
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: Theme.of(context).colorScheme.outline,
-                      ),
-                    ),
                   ],
-                ],
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );

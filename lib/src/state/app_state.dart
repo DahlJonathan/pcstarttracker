@@ -3,6 +3,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../api/api_client.dart';
 import '../models/device.dart';
+import '../models/device_event.dart';
 
 /// Default backend URL. Points at the deployed Railway backend; users can
 /// override it from the login screen's settings for local development.
@@ -87,4 +88,12 @@ class AppState extends ChangeNotifier {
     await _api.claimDevice(pairingToken: pairingToken, code: code);
     await refreshDevices();
   }
+
+  Future<void> removeDevice(String id) async {
+    await _api.deleteDevice(id);
+    _devices = _devices.where((d) => d.id != id).toList(growable: false);
+    notifyListeners();
+  }
+
+  Future<List<DeviceEvent>> deviceHistory(String id) => _api.listDeviceEvents(id);
 }

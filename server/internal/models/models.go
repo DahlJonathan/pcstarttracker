@@ -29,6 +29,12 @@ type Device struct {
 	CreatedAt      time.Time  `json:"created_at"`
 }
 
+// DeviceEvent is one recorded boot or shutdown in a device's history.
+type DeviceEvent struct {
+	Event     string    `json:"event"` // "boot" | "shutdown"
+	CreatedAt time.Time `json:"created_at"`
+}
+
 // PairInitResponse is returned to the PC agent when it starts a pairing session.
 type PairInitResponse struct {
 	PairingToken string    `json:"pairing_token"` // encoded into the QR code

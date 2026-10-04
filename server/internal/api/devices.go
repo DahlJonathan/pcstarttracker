@@ -3,6 +3,7 @@ package api
 import (
 	"database/sql"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -117,6 +118,89 @@ func (s *Server) handleListDevices(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeJSON(w, http.StatusOK, map[string]any{"devices": devices})
+}
+
+// handleDeleteDevice unpairs a device owned by the authenticated user. The
+// cascade on device_events removes the event history as well. The machine keeps
+// its UUID, so the agent can pair again later to re-create the device.
+func (s *Server) handleDeleteDevice(w http.ResponseWriter, r *http.Request) {
+	uid := r.Context().Value(ctxUserID).(int64)
+	deviceID := r.PathValue("id")
+	if deviceID == "" {
+		writeError(w, http.StatusBadRequest, "missing device id")
+		return
+	}
+
+	res, err := s.DB.ExecContext(r.Context(),
+		`DELETE FROM devices WHERE id = ? AND user_id = ?`, deviceID, uid)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "could not delete device")
+		return
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		writeError(w, http.StatusNotFound, "device not found")
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// handleDeviceHistory returns a device's boot/shutdown log, newest first, for
+// the owning user. The default limit keeps responses small; the app groups the
+// events by day to render a per-day timeline.
+func (s *Server) handleDeviceHistory(w http.ResponseWriter, r *http.Request) {
+	uid := r.Context().Value(ctxUserID).(int64)
+	deviceID := r.PathValue("id")
+	if deviceID == "" {
+		writeError(w, http.StatusBadRequest, "missing device id")
+		return
+	}
+
+	var owned int
+	err := s.DB.QueryRowContext(r.Context(),
+		`SELECT 1 FROM devices WHERE id = ? AND user_id = ?`, deviceID, uid).Scan(&owned)
+	if err == sql.ErrNoRows {
+		writeError(w, http.StatusNotFound, "device not found")
+		return
+	}
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "lookup failed")
+		return
+	}
+
+	limit := 500
+	if v := strings.TrimSpace(r.URL.Query().Get("limit")); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n > 0 && n <= 2000 {
+			limit = n
+		}
+	}
+
+	rows, err := s.DB.QueryContext(r.Context(),
+		`SELECT event, created_at FROM device_events
+		 WHERE device_id = ? ORDER BY created_at DESC LIMIT ?`, deviceID, limit)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "lookup failed")
+		return
+	}
+	defer rows.Close()
+
+	events := make([]models.DeviceEvent, 0)
+	for rows.Next() {
+		var (
+			ev      string
+			created sql.NullString
+		)
+		if err := rows.Scan(&ev, &created); err != nil {
+			writeError(w, http.StatusInternalServerError, "scan failed")
+			return
+		}
+		e := models.DeviceEvent{Event: ev}
+		if t := nullTime(created); t != nil {
+			e.CreatedAt = *t
+		}
+		events = append(events, e)
+	}
+
+	writeJSON(w, http.StatusOK, map[string]any{"events": events})
 }
 
 // --- helpers ----------------------------------------------------------------
