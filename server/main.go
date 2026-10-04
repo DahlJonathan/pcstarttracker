@@ -16,7 +16,14 @@ import (
 )
 
 func main() {
-	addr := envOr("PC_TRACKER_ADDR", ":8080")
+	addr := envOr("PC_TRACKER_ADDR", "")
+	if addr == "" {
+		if p := os.Getenv("PORT"); p != "" {
+			addr = ":" + p
+		} else {
+			addr = ":8080"
+		}
+	}
 	dbPath := envOr("PC_TRACKER_DB", "pc_tracker.db")
 	jwtSecret := envOr("PC_TRACKER_JWT_SECRET", "change-me-in-production")
 
