@@ -4,9 +4,9 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../api/api_client.dart';
 import '../models/device.dart';
 
-/// Default backend URL. On the Android emulator, 10.0.2.2 maps to the host's
-/// localhost; change this to your server's address for real devices.
-const String kDefaultBaseUrl = 'http://10.0.2.2:8080';
+/// Default backend URL. Points at the deployed Railway backend; users can
+/// override it from the login screen's settings for local development.
+const String kDefaultBaseUrl = 'https://pcstarttracker-production.up.railway.app';
 
 /// Top-level app state: authentication, the API client and the device list.
 class AppState extends ChangeNotifier {

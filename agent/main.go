@@ -16,7 +16,7 @@ import (
 )
 
 // defaultServerURL is used on first run; override with PC_TRACKER_SERVER.
-const defaultServerURL = "http://localhost:8080"
+const defaultServerURL = "https://pcstarttracker-production.up.railway.app"
 
 func main() {
 	log.SetFlags(log.LstdFlags | log.Lmsgprefix)
