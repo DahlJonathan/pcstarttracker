@@ -50,7 +50,7 @@ class _DeviceHistoryScreenState extends State<DeviceHistoryScreen> {
             }
             final events = snapshot.data ?? const [];
             if (events.isEmpty) {
-              return _message('No activity recorded yet.');
+              return _message('Nothing here yet.\nActivity will show up once the computer turns on or off.');
             }
             return _buildList(context, events);
           },
