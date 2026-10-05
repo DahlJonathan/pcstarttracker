@@ -15,6 +15,29 @@ type Client struct {
 	http    *http.Client
 }
 
+type Control struct {
+	Revision     int64  `json:"revision"`
+	Locked       bool   `json:"locked"`
+	PasswordHash string `json:"password_hash"`
+}
+
+type ControlAck struct {
+	Revision      int64  `json:"revision"`
+	Locked        bool   `json:"locked"`
+	OfflineUnlock bool   `json:"offline_unlock"`
+	Error         string `json:"error,omitempty"`
+}
+
+func (c *Client) Control(ctx context.Context, id, token string) (*Control, error) {
+	var out Control
+	err := c.do(ctx, http.MethodGet, fmt.Sprintf("/api/v1/devices/%s/control", id), token, nil, &out)
+	return &out, err
+}
+
+func (c *Client) AckControl(ctx context.Context, id, token string, ack ControlAck) error {
+	return c.do(ctx, http.MethodPost, fmt.Sprintf("/api/v1/devices/%s/control/ack", id), token, ack, nil)
+}
+
 // New returns a Client for the given backend base URL (e.g. http://host:8080).
 func New(baseURL string) *Client {
 	return &Client{

@@ -6,6 +6,7 @@ import '../widgets/auto_refresh.dart';
 import '../widgets/device_card.dart';
 import 'device_history_screen.dart';
 import 'pair_screen.dart';
+import 'lock_screen.dart';
 
 /// Main dashboard listing the user's paired PCs with pull-to-refresh.
 class DashboardScreen extends StatefulWidget {
@@ -142,6 +143,12 @@ class _DashboardScreenState extends State<DashboardScreen>
         return DeviceCard(
           device: device,
           onDelete: () => _confirmRemove(device.id, device.name),
+          onLock: () async {
+            await Navigator.of(context).push(
+              MaterialPageRoute(builder: (_) => LockScreen(device: device)),
+            );
+            if (mounted) await refreshContent();
+          },
           onTap: () async {
             await Navigator.of(context).push(
               MaterialPageRoute(

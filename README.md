@@ -99,15 +99,16 @@ go build -o pc-agent.exe .
 Install as a background Windows service (run in an **Administrator** prompt):
 
 ```powershell
-.\install.bat
+powershell -NoProfile -ExecutionPolicy Bypass -File .\install.ps1
 ```
 
-Keep `install.bat`, `uninstall.bat`, and the newly built `pc-agent.exe` together.
+Keep `install.ps1` and the newly built `pc-agent.exe` together.
 The installer pairs once, stops an existing service if needed, copies the binary
 to `%ProgramData%\PCStatusAgent\pc-agent.exe`, registers or updates an automatic
 (not delayed) service, and checks that it reaches Running. Failures stop the
 installer instead of reporting success. Running the installer again **preserves
-pairing and server history**; uninstalling clears local pairing data.
+pairing and server history**. Administrator commands `pc-agent stop` and
+`pc-agent uninstall` remove the service; `pc-agent reset` clears local pairing.
 
 The service restarts automatically after unexpected failures. Startup errors,
 telemetry failures, and Go crash output are recorded in
@@ -175,6 +176,57 @@ Connection failures are shown rather than silently replacing existing data.
 ---
 
 ## Notes & production hardening
+
+### Parental usage restriction (Windows console)
+
+Deploy the server, install the new agent, and update the phone app together.
+Database setup automatically adds `device_locks` without changing existing
+device/history tables. Keep Railway's database on the existing persistent volume.
+
+1. Build the Windows agent: `cd agent; go build -o pc-agent.exe .`.
+2. Run the new PowerShell installer from an Administrator prompt:
+   `powershell -NoProfile -ExecutionPolicy Bypass -File .\install.ps1`.
+   This preserves existing pairing and does not depend on the older batch files.
+3. In the phone app, choose **Parental lock** on a computer card. Set and repeat
+   a separate recovery password (8 to 72 UTF-8 bytes). Keep it somewhere safe.
+4. Use **Lock** or **Unlock**. The request is queued until the agent connects.
+   Agent control polling is every 5 seconds; the phone refreshes every 10 seconds.
+   Do not treat "requested" as confirmation. The applied state is acknowledged
+   only after the local screen responds or an unlock has been persisted.
+5. The PC's recovery-password box works through loopback HTTP, without internet
+   or a phone. Password hashes are bcrypt; plaintext passwords are neither
+   persisted nor logged. Five failed attempts cause a one-minute cooldown,
+   which survives an agent restart.
+
+The received restriction and recovery hash are stored in a separate per-device
+`restriction-*.json` in `%ProgramData%\PCStatusAgent`. An offline unlock survives
+restarts and reconciles with the server when connectivity returns. The same old
+command cannot re-lock it; a newer explicit parent command can. Password changes
+take effect offline only after the PC has received them.
+
+This is a **child-oriented usage deterrent, not a Windows security boundary**.
+The borderless, topmost screen covers monitors connected at launch, resists
+normal window closing, and is relaunched after it exits. It runs as the signed-in
+user, never as an interactive SYSTEM GUI. It targets the active local console,
+not remote-desktop sessions. Administrator tools, alternate desktops, Safe Mode,
+and physical access can bypass it; it does not block Ctrl+Alt+Delete, disable
+Task Manager, replace Windows sign-in, or alter the Windows password. Games may
+need testing on the actual PC, especially exclusive-fullscreen games.
+Do not use it as the sole enforcement for a technically capable child.
+
+Parent/admin emergency recovery if the local UI or password fails:
+stop `PCStatusAgent` in an elevated PowerShell (`Stop-Service PCStatusAgent`).
+This closes the usage screen while retaining the state for investigation.
+Check `%ProgramData%\PCStatusAgent\agent.log`; restart only after resolving
+the error or sending an unlock from the phone. Never test the first lock on a
+PC without both a known recovery password and administrator access.
+
+API additions: owner-authenticated `POST /api/v1/devices/{id}/lock` takes
+`{"locked":true|false,"password":"optional new recovery password"}` and returns
+202 (pending). Device-authenticated `GET .../control` fetches the revision and
+hash; `POST .../control/ack` confirms application or reports errors. Device
+lists include a public `lock` status, never the recovery hash. Stale
+acknowledgements cannot override a newer parent request.
 
 - Serve the backend over **HTTPS** and set a strong `PC_TRACKER_JWT_SECRET`.
   Cleartext HTTP is enabled on Android/iOS only for local-network development.

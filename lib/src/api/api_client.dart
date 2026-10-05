@@ -78,6 +78,22 @@ class ApiClient {
     _decode(res);
   }
 
+  /// Queues an owner-authorized restriction or recovery-password change.
+  Future<void> setDeviceLock(
+    String id, {
+    required bool locked,
+    String? password,
+  }) async {
+    final res = await _client
+        .post(
+          _uri('/api/v1/devices/$id/lock'),
+          headers: _headers,
+          body: jsonEncode({'locked': locked, 'password': ?password}),
+        )
+        .timeout(const Duration(seconds: 15));
+    _decode(res);
+  }
+
   /// Unpairs (deletes) a device owned by the signed-in user.
   Future<void> deleteDevice(String id) async {
     final res = await _client.delete(

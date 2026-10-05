@@ -9,11 +9,13 @@ class DeviceCard extends StatelessWidget {
     required this.device,
     this.onDelete,
     this.onTap,
+    this.onLock,
   });
 
   final Device device;
   final VoidCallback? onDelete;
   final VoidCallback? onTap;
+  final VoidCallback? onLock;
 
   @override
   Widget build(BuildContext context) {
@@ -85,6 +87,18 @@ class DeviceCard extends StatelessWidget {
                           style: theme.textTheme.bodySmall?.copyWith(
                             color: theme.colorScheme.outline,
                           ),
+                        ),
+                      ],
+                      if (onLock != null) ...[
+                        const SizedBox(height: 8),
+                        TextButton.icon(
+                          onPressed: onLock,
+                          icon: Icon(
+                            device.lock?.desiredLocked == true
+                                ? Icons.lock_outline
+                                : Icons.lock_open_rounded,
+                          ),
+                          label: Text(device.lock?.summary ?? 'Parental lock'),
                         ),
                       ],
                     ],

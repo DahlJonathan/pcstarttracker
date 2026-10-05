@@ -107,4 +107,13 @@ class AppState extends ChangeNotifier {
 
   Future<List<DeviceEvent>> deviceHistory(String id) =>
       _api.listDeviceEvents(id);
+
+  Future<void> setDeviceLock(
+    String id, {
+    required bool locked,
+    String? password,
+  }) async {
+    await _api.setDeviceLock(id, locked: locked, password: password);
+    await refreshDevices();
+  }
 }

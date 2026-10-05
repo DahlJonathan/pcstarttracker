@@ -16,6 +16,7 @@ import (
 	"pc-tracker-agent/internal/agent"
 	"pc-tracker-agent/internal/api"
 	"pc-tracker-agent/internal/config"
+	"pc-tracker-agent/internal/restriction"
 )
 
 // ServiceName is the Windows service identifier.
@@ -110,6 +111,26 @@ func (h *handler) Execute(_ []string, req <-chan svc.ChangeRequest, status chan<
 
 // RunService runs the agent under the SCM. Call only when IsWindowsService is true.
 func RunService(cfg *config.Config, client *api.Client) error {
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		if err := restriction.Run(ctx, cfg, client); err != nil {
+			log.Printf("parental restriction stopped: %v", err)
+			reportCtx, stop := context.WithTimeout(ctx, 8*time.Second)
+			defer stop()
+			command, queryErr := client.Control(reportCtx, cfg.DeviceID, cfg.DeviceToken)
+			if queryErr != nil {
+				log.Printf("restriction failure status lookup: %v", queryErr)
+			} else if command.Revision > 0 {
+				if ackErr := client.AckControl(reportCtx, cfg.DeviceID, cfg.DeviceToken,
+					api.ControlAck{Revision: command.Revision, Error: "Parental lock agent failed; check agent.log"}); ackErr != nil {
+					log.Printf("restriction failure status report: %v", ackErr)
+				}
+			}
+		}
+	}()
+	defer func() { cancel(); <-done }()
 	return svc.Run(ServiceName, &handler{cfg: cfg, runner: agent.NewRunner(cfg, client)})
 }
 

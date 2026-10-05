@@ -1,4 +1,5 @@
 import 'package:intl/intl.dart';
+import 'device_lock.dart';
 
 /// Computed power state of a device, mirroring the backend.
 enum DeviceStatus { online, offline }
@@ -13,6 +14,7 @@ class Device {
     this.lastBootAt,
     this.lastShutdownAt,
     this.lastHeartbeatAt,
+    this.lock,
   });
 
   final String id;
@@ -22,6 +24,7 @@ class Device {
   final DateTime? lastBootAt;
   final DateTime? lastShutdownAt;
   final DateTime? lastHeartbeatAt;
+  final DeviceLock? lock;
 
   bool get isOnline => status == DeviceStatus.online;
 
@@ -36,6 +39,9 @@ class Device {
       lastBootAt: _parse(json['last_boot_at']),
       lastShutdownAt: _parse(json['last_shutdown_at']),
       lastHeartbeatAt: _parse(json['last_heartbeat_at']),
+      lock: json['lock'] is Map<String, dynamic>
+          ? DeviceLock.fromJson(json['lock'] as Map<String, dynamic>)
+          : null,
     );
   }
 

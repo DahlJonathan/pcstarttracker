@@ -19,20 +19,31 @@ const (
 
 // Device is a paired PC together with its computed status for API responses.
 type Device struct {
-	ID             string     `json:"id"`
-	Name           string     `json:"name"`
-	Status         Status     `json:"status"`
-	LastEvent      string     `json:"last_event,omitempty"`
-	LastBootAt     *time.Time `json:"last_boot_at,omitempty"`
-	LastShutdownAt *time.Time `json:"last_shutdown_at,omitempty"`
-	LastHeartbeat  *time.Time `json:"last_heartbeat_at,omitempty"`
-	CreatedAt      time.Time  `json:"created_at"`
+	ID             string      `json:"id"`
+	Name           string      `json:"name"`
+	Status         Status      `json:"status"`
+	LastEvent      string      `json:"last_event,omitempty"`
+	LastBootAt     *time.Time  `json:"last_boot_at,omitempty"`
+	LastShutdownAt *time.Time  `json:"last_shutdown_at,omitempty"`
+	LastHeartbeat  *time.Time  `json:"last_heartbeat_at,omitempty"`
+	CreatedAt      time.Time   `json:"created_at"`
+	Lock           *LockStatus `json:"lock,omitempty"`
 }
 
 // DeviceEvent is one recorded boot or shutdown in a device's history.
 type DeviceEvent struct {
 	Event     string    `json:"event"` // "boot" | "shutdown"
 	CreatedAt time.Time `json:"created_at"`
+}
+
+type LockStatus struct {
+	Revision        int64      `json:"revision"`
+	DesiredLocked   bool       `json:"desired_locked"`
+	PasswordReady   bool       `json:"password_ready"`
+	AppliedRevision int64      `json:"applied_revision"`
+	AppliedLocked   bool       `json:"applied_locked"`
+	LastError       string     `json:"last_error"`
+	ConfirmedAt     *time.Time `json:"confirmed_at,omitempty"`
 }
 
 // PairInitResponse is returned to the PC agent when it starts a pairing session.

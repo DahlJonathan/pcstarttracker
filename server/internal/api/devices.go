@@ -128,8 +128,10 @@ func (s *Server) handleListDevices(w http.ResponseWriter, r *http.Request) {
 	uid := r.Context().Value(ctxUserID).(int64)
 
 	rows, err := s.DB.QueryContext(r.Context(),
-		`SELECT id, name, last_event, last_boot_at, last_shutdown_at, last_heartbeat_at, created_at
-		 FROM devices WHERE user_id = ? ORDER BY name`, uid)
+		`SELECT d.id, d.name, d.last_event, d.last_boot_at, d.last_shutdown_at, d.last_heartbeat_at, d.created_at,
+		 COALESCE(l.revision, 0), COALESCE(l.desired_locked, 0), COALESCE(l.password_hash != '', 0),
+		 COALESCE(l.applied_revision, -1), COALESCE(l.applied_locked, 0), COALESCE(l.last_error, ''), l.confirmed_at
+		 FROM devices d LEFT JOIN device_locks l ON l.device_id = d.id WHERE d.user_id = ? ORDER BY d.name`, uid)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "lookup failed")
 		return
@@ -142,8 +144,12 @@ func (s *Server) handleListDevices(w http.ResponseWriter, r *http.Request) {
 		var (
 			d                                                models.Device
 			lastEvent, lastBoot, lastShut, lastBeat, created sql.NullString
+			lock                                             lockStatus
+			confirmed                                        sql.NullString
 		)
-		if err := rows.Scan(&d.ID, &d.Name, &lastEvent, &lastBoot, &lastShut, &lastBeat, &created); err != nil {
+		if err := rows.Scan(&d.ID, &d.Name, &lastEvent, &lastBoot, &lastShut, &lastBeat, &created,
+			&lock.Revision, &lock.DesiredLocked, &lock.PasswordReady, &lock.AppliedRevision,
+			&lock.AppliedLocked, &lock.LastError, &confirmed); err != nil {
 			writeError(w, http.StatusInternalServerError, "scan failed")
 			return
 		}
@@ -155,7 +161,13 @@ func (s *Server) handleListDevices(w http.ResponseWriter, r *http.Request) {
 			d.CreatedAt = *t
 		}
 		d.Status = status.Evaluate(lastEvent.String, d.LastHeartbeat, now)
+		lock.ConfirmedAt = nullTime(confirmed)
+		d.Lock = &lock
 		devices = append(devices, d)
+	}
+	if err := rows.Err(); err != nil {
+		writeError(w, http.StatusInternalServerError, "could not read devices")
+		return
 	}
 
 	writeJSON(w, http.StatusOK, map[string]any{"devices": devices})

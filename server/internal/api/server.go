@@ -40,11 +40,14 @@ func (s *Server) Router() http.Handler {
 	// Device-authenticated telemetry (bearer = permanent device token).
 	mux.Handle("POST /api/v1/devices/{id}/events", s.requireDevice(http.HandlerFunc(s.handleEvent)))
 	mux.Handle("POST /api/v1/devices/{id}/heartbeat", s.requireDevice(http.HandlerFunc(s.handleHeartbeat)))
+	mux.Handle("GET /api/v1/devices/{id}/control", s.requireDevice(http.HandlerFunc(s.handleGetControl)))
+	mux.Handle("POST /api/v1/devices/{id}/control/ack", s.requireDevice(http.HandlerFunc(s.handleAckControl)))
 
 	// User-authenticated dashboard.
 	mux.Handle("GET /api/v1/devices", s.requireUser(http.HandlerFunc(s.handleListDevices)))
 	mux.Handle("GET /api/v1/devices/{id}/history", s.requireUser(http.HandlerFunc(s.handleDeviceHistory)))
 	mux.Handle("DELETE /api/v1/devices/{id}", s.requireUser(http.HandlerFunc(s.handleDeleteDevice)))
+	mux.Handle("POST /api/v1/devices/{id}/lock", s.requireUser(http.HandlerFunc(s.handleSetLock)))
 
 	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)

@@ -44,3 +44,15 @@ CREATE TABLE IF NOT EXISTS pairing_tokens (
     created_at TEXT    NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
 );
 CREATE INDEX IF NOT EXISTS idx_pairing_code ON pairing_tokens(code);
+
+-- Desired parental restriction and the last agent acknowledgement.
+CREATE TABLE IF NOT EXISTS device_locks (
+    device_id TEXT PRIMARY KEY REFERENCES devices(id) ON DELETE CASCADE,
+    revision INTEGER NOT NULL DEFAULT 0,
+    desired_locked INTEGER NOT NULL DEFAULT 0,
+    password_hash TEXT NOT NULL DEFAULT '',
+    applied_revision INTEGER NOT NULL DEFAULT -1,
+    applied_locked INTEGER NOT NULL DEFAULT 0,
+    last_error TEXT NOT NULL DEFAULT '',
+    confirmed_at TEXT
+);
