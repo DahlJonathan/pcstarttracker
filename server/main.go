@@ -16,6 +16,7 @@ import (
 )
 
 func main() {
+	log.SetOutput(os.Stdout)
 	addr := envOr("PC_TRACKER_ADDR", "")
 	if addr == "" {
 		if p := os.Getenv("PORT"); p != "" {
