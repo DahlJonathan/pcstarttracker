@@ -40,6 +40,35 @@ func (s *Server) handleEvent(w http.ResponseWriter, r *http.Request) {
 	}
 	defer func() { _ = tx.Rollback() }()
 
+	// When a boot arrives, the machine must have been off since we last heard
+	// from it. The agent tries to send a graceful "shutdown" on power-off, but
+	// the network is frequently torn down before it can, so that event is often
+	// lost. Backfill a shutdown for the previous power cycle, approximating the
+	// power-off time as the last moment the machine was known to be alive.
+	if in.Event == "boot" {
+		var prevEvent, prevBeat, prevBoot sql.NullString
+		if err := tx.QueryRowContext(r.Context(),
+			`SELECT last_event, last_heartbeat_at, last_boot_at FROM devices WHERE id = ?`,
+			deviceID).Scan(&prevEvent, &prevBeat, &prevBoot); err != nil && err != sql.ErrNoRows {
+			writeError(w, http.StatusInternalServerError, "could not read device")
+			return
+		}
+		if prevEvent.String != "" && prevEvent.String != "shutdown" {
+			offAt := prevBeat.String
+			if offAt == "" {
+				offAt = prevBoot.String
+			}
+			if offAt != "" && timeLess(offAt, ts) {
+				if _, err := tx.ExecContext(r.Context(),
+					`INSERT INTO device_events (device_id, event, created_at) VALUES (?, 'shutdown', ?)`,
+					deviceID, offAt); err != nil {
+					writeError(w, http.StatusInternalServerError, "could not record event")
+					return
+				}
+			}
+		}
+	}
+
 	if _, err := tx.ExecContext(r.Context(),
 		`INSERT INTO device_events (device_id, event, created_at) VALUES (?, ?, ?)`,
 		deviceID, in.Event, ts); err != nil {
@@ -210,6 +239,17 @@ func parseTimestamp(s string) string {
 		return t.UTC().Format(time.RFC3339Nano)
 	}
 	return time.Now().UTC().Format(time.RFC3339Nano)
+}
+
+// timeLess reports whether timestamp a is strictly before b. Both are expected
+// to be RFC3339 strings; a parse failure yields false (no backfill).
+func timeLess(a, b string) bool {
+	ta, erra := time.Parse(time.RFC3339Nano, a)
+	tb, errb := time.Parse(time.RFC3339Nano, b)
+	if erra != nil || errb != nil {
+		return false
+	}
+	return ta.Before(tb)
 }
 
 func nullTime(s sql.NullString) *time.Time {

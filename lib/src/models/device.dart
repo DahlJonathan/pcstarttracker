@@ -55,11 +55,11 @@ class Device {
       }
       return 'On now';
     }
-    if (lastEvent == 'shutdown' && lastShutdownAt != null) {
-      return 'Turned off ${_ago(lastShutdownAt!)}';
-    }
-    if (lastHeartbeatAt != null) {
-      return 'Last seen ${_ago(lastHeartbeatAt!)}';
+    // Offline: prefer a real shutdown time, otherwise fall back to the last
+    // moment we heard from the computer (a good estimate of when it went off).
+    final offAt = lastShutdownAt ?? lastHeartbeatAt;
+    if (offAt != null) {
+      return 'Turned off ${_ago(offAt)}';
     }
     return 'Off';
   }
