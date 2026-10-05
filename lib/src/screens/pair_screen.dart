@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:provider/provider.dart';
@@ -5,7 +7,13 @@ import 'package:provider/provider.dart';
 import '../api/api_client.dart';
 import '../state/app_state.dart';
 
-/// Pairing screen: scan the PC's QR code or enter the 6-digit code manually.
+/// Pairing screen: scan the computer's QR code or enter the 6-digit code.
+///
+/// The camera lifecycle is managed here because a user-provided
+/// [MobileScannerController] opts out of the plugin's automatic start/stop.
+/// Without this, the camera fails to (re)start after a permission prompt or
+/// when the app returns to the foreground, surfacing as "camera could not be
+/// started".
 class PairScreen extends StatefulWidget {
   const PairScreen({super.key});
 
@@ -13,14 +21,44 @@ class PairScreen extends StatefulWidget {
   State<PairScreen> createState() => _PairScreenState();
 }
 
-class _PairScreenState extends State<PairScreen> {
-  final _scanner = MobileScannerController();
+class _PairScreenState extends State<PairScreen> with WidgetsBindingObserver {
+  final _scanner = MobileScannerController(autoStart: false);
   final _code = TextEditingController();
   bool _busy = false;
   bool _handled = false; // prevents duplicate claims from rapid scans
 
   @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    _startCamera();
+  }
+
+  Future<void> _startCamera() async {
+    try {
+      await _scanner.start();
+    } catch (_) {
+      // Any failure is surfaced through MobileScanner's errorBuilder.
+    }
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (!_scanner.value.isInitialized) return;
+    switch (state) {
+      case AppLifecycleState.resumed:
+        _startCamera();
+      case AppLifecycleState.inactive:
+      case AppLifecycleState.paused:
+      case AppLifecycleState.hidden:
+      case AppLifecycleState.detached:
+        unawaited(_scanner.stop());
+    }
+  }
+
+  @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _scanner.dispose();
     _code.dispose();
     super.dispose();
@@ -36,7 +74,7 @@ class _PairScreenState extends State<PairScreen> {
       );
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Device paired successfully')),
+        const SnackBar(content: Text('Computer added 🎉')),
       );
       Navigator.of(context).pop(true);
     } on ApiException catch (e) {
@@ -64,42 +102,72 @@ class _PairScreenState extends State<PairScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     return Scaffold(
-      appBar: AppBar(title: const Text('Add Device')),
+      appBar: AppBar(title: const Text('Add a computer')),
       body: Column(
         children: [
           Expanded(
-            child: Stack(
-              alignment: Alignment.center,
-              children: [
-                MobileScanner(
-                  controller: _scanner,
-                  onDetect: _onDetect,
-                  errorBuilder: (context, error, child) =>
-                      _CameraError(error: error, onRetry: _scanner.start),
-                ),
-                _ScannerOverlay(),
-                if (_busy) const CircularProgressIndicator(),
-              ],
+            child: Container(
+              margin: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+              clipBehavior: Clip.antiAlias,
+              decoration: BoxDecoration(
+                color: Colors.black,
+                borderRadius: BorderRadius.circular(24),
+              ),
+              child: Stack(
+                alignment: Alignment.center,
+                children: [
+                  MobileScanner(
+                    controller: _scanner,
+                    onDetect: _onDetect,
+                    errorBuilder: (context, error, child) =>
+                        _CameraError(error: error, onRetry: _startCamera),
+                  ),
+                  const _ScannerOverlay(),
+                  Positioned(
+                    bottom: 16,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 8,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.black54,
+                        borderRadius: BorderRadius.circular(999),
+                      ),
+                      child: const Text(
+                        'Point the camera at the QR code',
+                        style: TextStyle(color: Colors.white),
+                      ),
+                    ),
+                  ),
+                  if (_busy)
+                    Container(
+                      color: Colors.black45,
+                      child: const Center(child: CircularProgressIndicator()),
+                    ),
+                ],
+              ),
             ),
           ),
           Padding(
-            padding: const EdgeInsets.all(20),
+            padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
             child: Column(
               children: [
-                Text(
-                  'Scan the QR code shown on your PC',
-                  style: Theme.of(context).textTheme.titleMedium,
-                ),
-                const SizedBox(height: 16),
-                const Row(
+                Row(
                   children: [
-                    Expanded(child: Divider()),
+                    const Expanded(child: Divider()),
                     Padding(
-                      padding: EdgeInsets.symmetric(horizontal: 8),
-                      child: Text('OR'),
+                      padding: const EdgeInsets.symmetric(horizontal: 12),
+                      child: Text(
+                        'or type the code',
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: theme.colorScheme.outline,
+                        ),
+                      ),
                     ),
-                    Expanded(child: Divider()),
+                    const Expanded(child: Divider()),
                   ],
                 ),
                 const SizedBox(height: 16),
@@ -110,10 +178,14 @@ class _PairScreenState extends State<PairScreen> {
                         controller: _code,
                         keyboardType: TextInputType.number,
                         maxLength: 6,
+                        style: const TextStyle(
+                          fontSize: 22,
+                          letterSpacing: 6,
+                          fontWeight: FontWeight.w600,
+                        ),
                         decoration: const InputDecoration(
-                          labelText: 'Enter 6-digit code',
+                          labelText: '6-digit code',
                           counterText: '',
-                          border: OutlineInputBorder(),
                         ),
                       ),
                     ),
@@ -129,7 +201,7 @@ class _PairScreenState extends State<PairScreen> {
                                 _showError('Enter the 6-digit code');
                               }
                             },
-                      child: const Text('Pair'),
+                      child: const Text('Add'),
                     ),
                   ],
                 ),
@@ -143,6 +215,8 @@ class _PairScreenState extends State<PairScreen> {
 }
 
 class _ScannerOverlay extends StatelessWidget {
+  const _ScannerOverlay();
+
   @override
   Widget build(BuildContext context) {
     return IgnorePointer(
@@ -151,7 +225,7 @@ class _ScannerOverlay extends StatelessWidget {
         height: 240,
         decoration: BoxDecoration(
           border: Border.all(color: Colors.white, width: 3),
-          borderRadius: BorderRadius.circular(20),
+          borderRadius: BorderRadius.circular(24),
         ),
       ),
     );
@@ -167,28 +241,30 @@ class _CameraError extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final denied =
-        error.errorCode == MobileScannerErrorCode.permissionDenied;
+    final denied = error.errorCode == MobileScannerErrorCode.permissionDenied;
     return Container(
       color: Colors.black,
-      padding: const EdgeInsets.all(24),
+      padding: const EdgeInsets.all(28),
       alignment: Alignment.center,
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const Icon(Icons.no_photography_outlined,
-              size: 56, color: Colors.white70),
+          const Icon(
+            Icons.photo_camera_outlined,
+            size: 56,
+            color: Colors.white70,
+          ),
           const SizedBox(height: 16),
           Text(
             denied
-                ? 'Camera permission is required to scan the QR code.\n'
-                    'Enable Camera for this app in your phone settings, '
-                    'then tap Try again. You can also enter the 6-digit '
-                    'code below instead.'
-                : 'The camera could not be started.\n'
-                    'You can enter the 6-digit code below instead.',
+                ? 'We need camera access to scan the QR code.\n\n'
+                      'Turn on Camera for this app in your phone settings, '
+                      'then tap Try again — or just type the 6-digit code below.'
+                : 'The camera could not be started.\n\n'
+                      'No problem — type the 6-digit code shown on your '
+                      'computer below instead.',
             textAlign: TextAlign.center,
-            style: const TextStyle(color: Colors.white),
+            style: const TextStyle(color: Colors.white, height: 1.4),
           ),
           const SizedBox(height: 20),
           FilledButton.icon(

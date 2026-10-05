@@ -125,13 +125,24 @@ class _EventTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final boot = event.isBoot;
-    final color = boot ? const Color(0xFF22C55E) : const Color(0xFFEF4444);
+    final color = boot ? const Color(0xFF22C55E) : const Color(0xFF94A3B8);
     return ListTile(
-      leading: Icon(
-        boot ? Icons.play_arrow_rounded : Icons.power_settings_new_rounded,
-        color: color,
+      leading: Container(
+        width: 42,
+        height: 42,
+        decoration: BoxDecoration(
+          color: color.withValues(alpha: 0.14),
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Icon(
+          boot ? Icons.power_rounded : Icons.power_settings_new_rounded,
+          color: color,
+        ),
       ),
-      title: Text(boot ? 'Booted' : 'Shut down'),
+      title: Text(
+        boot ? 'Turned on' : 'Turned off',
+        style: const TextStyle(fontWeight: FontWeight.w600),
+      ),
       trailing: Text(
         event.time,
         style: Theme.of(context).textTheme.titleMedium,

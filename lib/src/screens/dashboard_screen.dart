@@ -39,10 +39,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('My PCs'),
+        title: const Text('My computers'),
         actions: [
           IconButton(
-            icon: const Icon(Icons.logout),
+            icon: const Icon(Icons.logout_rounded),
             tooltip: 'Sign out',
             onPressed: () => context.read<AppState>().signOut(),
           ),
@@ -50,8 +50,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
       ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: _openPairing,
-        icon: const Icon(Icons.add),
-        label: const Text('Add Device'),
+        icon: const Icon(Icons.add_rounded),
+        label: const Text('Add computer'),
       ),
       body: RefreshIndicator(
         onRefresh: () => context.read<AppState>().refreshDevices(),
@@ -61,6 +61,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   Widget _buildBody(BuildContext context, AppState state) {
+    final theme = Theme.of(context);
     if (state.loading && state.devices.isEmpty) {
       return const Center(child: CircularProgressIndicator());
     }
@@ -68,19 +69,43 @@ class _DashboardScreenState extends State<DashboardScreen> {
       // ListView keeps pull-to-refresh working even when empty.
       return ListView(
         children: [
-          SizedBox(height: MediaQuery.of(context).size.height * 0.25),
-          Icon(
-            Icons.devices_other_outlined,
-            size: 72,
-            color: Theme.of(context).colorScheme.outline,
+          SizedBox(height: MediaQuery.of(context).size.height * 0.18),
+          Center(
+            child: Container(
+              width: 120,
+              height: 120,
+              decoration: BoxDecoration(
+                color: theme.colorScheme.primaryContainer,
+                borderRadius: BorderRadius.circular(32),
+              ),
+              child: Icon(
+                Icons.devices_other_rounded,
+                size: 64,
+                color: theme.colorScheme.onPrimaryContainer,
+              ),
+            ),
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 24),
           Center(
             child: Text(
-              state.error ??
-                  'No PCs yet.\nTap "Add Device" to pair your computer.',
+              state.error ?? 'No computers yet',
               textAlign: TextAlign.center,
-              style: Theme.of(context).textTheme.bodyLarge,
+              style: theme.textTheme.titleLarge?.copyWith(
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+          const SizedBox(height: 8),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 40),
+            child: Text(
+              state.error != null
+                  ? 'Pull down to try again.'
+                  : 'Tap “Add computer” below and scan the QR code shown on the computer you want to watch.',
+              textAlign: TextAlign.center,
+              style: theme.textTheme.bodyLarge?.copyWith(
+                color: theme.colorScheme.outline,
+              ),
             ),
           ),
         ],
@@ -88,7 +113,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     }
     return ListView.builder(
       physics: const AlwaysScrollableScrollPhysics(),
-      padding: const EdgeInsets.only(top: 8, bottom: 96),
+      padding: const EdgeInsets.only(top: 12, bottom: 96),
       itemCount: state.devices.length,
       itemBuilder: (_, i) {
         final device = state.devices[i];
@@ -109,10 +134,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Remove device'),
+        title: const Text('Remove this computer?'),
         content: Text(
-          'Remove "$name"? It will stop appearing here. '
-          'You can pair the PC again later.',
+          '“$name” will stop showing here. '
+          'You can always add it again later.',
         ),
         actions: [
           TextButton(

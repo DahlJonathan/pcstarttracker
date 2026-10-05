@@ -51,17 +51,17 @@ class Device {
   String get statusDetail {
     if (isOnline) {
       if (lastBootAt != null) {
-        return 'Booted ${_relativeOrTime(lastBootAt!)}';
+        return 'Turned on ${_relativeOrTime(lastBootAt!)}';
       }
-      return 'Online';
+      return 'On now';
     }
     if (lastEvent == 'shutdown' && lastShutdownAt != null) {
-      return 'Shut down ${_ago(lastShutdownAt!)}';
+      return 'Turned off ${_ago(lastShutdownAt!)}';
     }
     if (lastHeartbeatAt != null) {
       return 'Last seen ${_ago(lastHeartbeatAt!)}';
     }
-    return 'Offline';
+    return 'Off';
   }
 
   String get exactTimestamp {
