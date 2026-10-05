@@ -61,7 +61,16 @@ class _DeviceHistoryScreenState extends State<DeviceHistoryScreen>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text(widget.device.name)),
+      appBar: AppBar(
+        title: Text(widget.device.name),
+        actions: [
+          IconButton(
+            onPressed: _refresh,
+            tooltip: 'Refresh history',
+            icon: const Icon(Icons.refresh),
+          ),
+        ],
+      ),
       body: Column(
         children: [
           if (_refreshError != null)

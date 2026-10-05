@@ -30,20 +30,41 @@ type handler struct {
 	runner *agent.Runner
 }
 
+const (
+	powerSuspend         = 4
+	powerResumeSuspend   = 7
+	powerResumeAutomatic = 18
+)
+
 // Execute is called by the SCM. It accepts STOP, SHUTDOWN and PRESHUTDOWN so the
 // agent can emit a graceful shutdown event before Windows kills the process.
 func (h *handler) Execute(_ []string, req <-chan svc.ChangeRequest, status chan<- svc.Status) (bool, uint32) {
-	const accepted = svc.AcceptStop | svc.AcceptShutdown | svc.AcceptPreShutdown
+	const accepted = svc.AcceptStop | svc.AcceptShutdown | svc.AcceptPreShutdown | svc.AcceptPowerEvent
 
 	status <- svc.Status{State: svc.StartPending}
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-	done := make(chan struct{})
-	go func() {
-		h.runner.Run(ctx) // boot event + heartbeats
-		close(done)
-	}()
+	var cancel context.CancelFunc
+	var done chan struct{}
+	suspended := false
+	startRunner := func() {
+		ctx, stop := context.WithCancel(context.Background())
+		cancel = stop
+		done = make(chan struct{})
+		go func(completed chan struct{}) {
+			h.runner.Run(ctx)
+			close(completed)
+		}(done)
+	}
+	stopRunner := func() {
+		if cancel != nil {
+			cancel()
+			<-done
+			cancel = nil
+			done = nil
+		}
+	}
+	startRunner()
+	defer stopRunner()
 
 	status <- svc.Status{State: svc.Running, Accepts: accepted}
 
@@ -55,13 +76,30 @@ func (h *handler) Execute(_ []string, req <-chan svc.ChangeRequest, status chan<
 			switch c.Cmd {
 			case svc.Interrogate:
 				status <- c.CurrentStatus
+			case svc.PowerEvent:
+				switch c.EventType {
+				case powerSuspend:
+					if !suspended {
+						log.Printf("power suspend: recording inactive state")
+						stopRunner()
+						h.runner.SendShutdown()
+						suspended = true
+					}
+				case powerResumeSuspend, powerResumeAutomatic:
+					if suspended {
+						log.Printf("power resume: recording active state")
+						suspended = false
+						startRunner()
+					}
+				}
 			case svc.Stop, svc.Shutdown, svc.PreShutdown:
 				log.Printf("service control %d: stopping", c.Cmd)
 				// Tell the SCM we need a moment, then send the final event.
 				status <- svc.Status{State: svc.StopPending, WaitHint: 10000}
-				cancel()
-				<-done
-				h.runner.SendShutdown()
+				stopRunner()
+				if !suspended {
+					h.runner.SendShutdown()
+				}
 				return false, 0
 			default:
 				log.Printf("unexpected control request: %d", c.Cmd)

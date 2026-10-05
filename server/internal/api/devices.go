@@ -217,7 +217,7 @@ func (s *Server) handleDeviceHistory(w http.ResponseWriter, r *http.Request) {
 
 	rows, err := s.DB.QueryContext(r.Context(),
 		`SELECT event, created_at FROM device_events
-		 WHERE device_id = ? ORDER BY created_at DESC LIMIT ?`, deviceID, limit)
+		 WHERE device_id = ? ORDER BY julianday(created_at) DESC, id DESC LIMIT ?`, deviceID, limit)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "lookup failed")
 		return
@@ -239,6 +239,10 @@ func (s *Server) handleDeviceHistory(w http.ResponseWriter, r *http.Request) {
 			e.CreatedAt = *t
 		}
 		events = append(events, e)
+	}
+	if err := rows.Err(); err != nil {
+		writeError(w, http.StatusInternalServerError, "could not read history")
+		return
 	}
 
 	writeJSON(w, http.StatusOK, map[string]any{"events": events})

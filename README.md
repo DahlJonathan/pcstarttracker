@@ -127,6 +127,12 @@ send a final `shutdown` event (see
 [`agent/internal/winsvc/service_windows.go`](agent/internal/winsvc/service_windows.go)).
 Boot events use exponential backoff for slow network init
 ([`agent/internal/agent/runner.go`](agent/internal/agent/runner.go)).
+It also accepts Windows power events: suspend records an inactive (`shutdown`)
+event and pauses heartbeats; resume records an active (`boot`) event and restarts
+heartbeats. Duplicate resume notifications do not add duplicate events.
+These history labels indicate the agent becoming active/inactive and can include
+sleep or hibernation, not just a physical power-off. Heartbeats alone update the
+current connection status and never create power-history entries.
 
 Config is stored at `%ProgramData%\PCStatusAgent\config.json`.
 Shutdown events are saved here before delivery and replayed before the next

@@ -29,6 +29,44 @@ http.Response jsonResponse(Object value) => http.Response(
 );
 
 void main() {
+  testWidgets('tapping the paired computer opens its complete history', (
+    tester,
+  ) async {
+    var historyRequests = 0;
+    final state = await makeState(
+      MockClient((request) async {
+        if (request.url.path.endsWith('/history')) {
+          expect(request.url.path, '/api/v1/devices/family-pc/history');
+          historyRequests++;
+          return jsonResponse({
+            'events': [
+              {'event': 'boot', 'created_at': '2026-10-05T06:17:00Z'},
+              {'event': 'shutdown', 'created_at': '2026-10-05T06:16:00Z'},
+              {'event': 'boot', 'created_at': '2026-10-05T06:07:00Z'},
+            ],
+          });
+        }
+        return jsonResponse({
+          'devices': [
+            {'id': 'family-pc', 'name': 'Family PC', 'status': 'ONLINE'},
+          ],
+        });
+      }),
+    );
+    await tester.pumpWidget(wrap(state, const DashboardScreen()));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Family PC'));
+    await tester.pumpAndSettle();
+    expect(historyRequests, 1);
+    expect(find.text('Turned on'), findsNWidgets(2));
+    expect(find.text('Turned off'), findsOneWidget);
+    await tester.tap(find.byTooltip('Refresh history'));
+    await tester.pumpAndSettle();
+    expect(historyRequests, 2);
+    await tester.pumpWidget(const SizedBox());
+    state.dispose();
+  });
+
   testWidgets('dashboard polls and resumes, but pauses in the background', (
     tester,
   ) async {

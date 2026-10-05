@@ -2,13 +2,16 @@ package api
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
 	"time"
 
+	"pc-tracker-server/internal/auth"
 	"pc-tracker-server/internal/db"
+	"pc-tracker-server/internal/models"
 )
 
 // newTestServer spins up a Server backed by a throwaway on-disk SQLite DB and
@@ -149,5 +152,46 @@ func TestBoot_QuickServiceRestartDoesNotInventShutdown(t *testing.T) {
 	postEvent(t, s, dev, "boot", at.Add(10*time.Second))
 	if got := events(t, s, dev); strings.Join(got, ",") != "boot,boot" {
 		t.Fatalf("restart invented shutdown: %v", got)
+	}
+}
+
+func TestHistoryReturnsEveryLifecycleEventThroughAuthenticatedRoute(t *testing.T) {
+	s, dev := newTestServer(t)
+	s.Auth = auth.New("test-secret", time.Hour)
+	// RFC3339Nano drops trailing fractional zeros. Sorting the timestamp text
+	// would place .1Z before Z rather than after it.
+	at := time.Date(2026, 10, 5, 9, 0, 0, 0, time.UTC)
+	postEvent(t, s, dev, "boot", at)
+	postEvent(t, s, dev, "shutdown", at.Add(100*time.Millisecond))
+	postEvent(t, s, dev, "boot", at.Add(time.Minute))
+	postEvent(t, s, dev, "shutdown", at.Add(2*time.Minute))
+	token, err := s.Auth.IssueUserToken(1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	r := httptest.NewRequest(http.MethodGet, "/api/v1/devices/"+dev+"/history", nil)
+	r.Header.Set("Authorization", "Bearer "+token)
+	w := httptest.NewRecorder()
+	s.Router().ServeHTTP(w, r)
+	if w.Code != http.StatusOK {
+		t.Fatalf("history status=%d body=%s", w.Code, w.Body.String())
+	}
+	var body struct {
+		Events []models.DeviceEvent `json:"events"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &body); err != nil {
+		t.Fatal(err)
+	}
+	if len(body.Events) != 4 {
+		t.Fatalf("history length=%d want=4", len(body.Events))
+	}
+	want := []string{"shutdown", "boot", "shutdown", "boot"}
+	for i, ev := range body.Events {
+		if ev.Event != want[i] {
+			t.Fatalf("event %d=%s want=%s", i, ev.Event, want[i])
+		}
+		if i > 0 && ev.CreatedAt.After(body.Events[i-1].CreatedAt) {
+			t.Fatal("history is not newest-first")
+		}
 	}
 }
