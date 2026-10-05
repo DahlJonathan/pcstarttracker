@@ -7,8 +7,8 @@ import (
 )
 
 // HeartbeatTimeout is the grace window after the last heartbeat before a device
-// is considered offline. Agents beat every 60s, so 150s tolerates two misses.
-const HeartbeatTimeout = 150 * time.Second
+// is considered offline. Agents beat every 15s, so 45s tolerates two misses.
+const HeartbeatTimeout = 45 * time.Second
 
 // Evaluate computes whether a device is ONLINE or OFFLINE.
 //

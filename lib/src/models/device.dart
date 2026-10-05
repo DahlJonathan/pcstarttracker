@@ -55,17 +55,19 @@ class Device {
       }
       return 'On now';
     }
-    // Offline: prefer a real shutdown time, otherwise fall back to the last
-    // moment we heard from the computer (a good estimate of when it went off).
-    final offAt = lastShutdownAt ?? lastHeartbeatAt;
-    if (offAt != null) {
-      return 'Turned off ${_ago(offAt)}';
+    if (lastEvent == 'shutdown' && lastShutdownAt != null) {
+      return 'Turned off ${_ago(lastShutdownAt!)}';
+    }
+    if (lastHeartbeatAt != null) {
+      return 'Connection lost. Last seen ${_ago(lastHeartbeatAt!)}';
     }
     return 'Off';
   }
 
   String get exactTimestamp {
-    final t = isOnline ? lastBootAt : (lastShutdownAt ?? lastHeartbeatAt);
+    final t = isOnline
+        ? lastBootAt
+        : (lastEvent == 'shutdown' ? lastShutdownAt : lastHeartbeatAt);
     if (t == null) return '';
     return DateFormat('EEE d MMM, HH:mm').format(t);
   }

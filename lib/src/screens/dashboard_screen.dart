@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../state/app_state.dart';
+import '../widgets/auto_refresh.dart';
 import '../widgets/device_card.dart';
 import 'device_history_screen.dart';
 import 'pair_screen.dart';
@@ -14,12 +15,20 @@ class DashboardScreen extends StatefulWidget {
   State<DashboardScreen> createState() => _DashboardScreenState();
 }
 
-class _DashboardScreenState extends State<DashboardScreen> {
+class _DashboardScreenState extends State<DashboardScreen>
+    with WidgetsBindingObserver, AutoRefresh<DashboardScreen> {
+  @override
+  Future<void> refreshContent() async {
+    final state = context.read<AppState>();
+    if (state.isSignedIn) await state.refreshDevices();
+  }
+
   @override
   void initState() {
     super.initState();
     // Fetch on open.
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
       context.read<AppState>().refreshDevices();
     });
   }
@@ -55,7 +64,19 @@ class _DashboardScreenState extends State<DashboardScreen> {
       ),
       body: RefreshIndicator(
         onRefresh: () => context.read<AppState>().refreshDevices(),
-        child: _buildBody(context, state),
+        child: Column(
+          children: [
+            if (state.error != null && state.devices.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.all(12),
+                child: Text(
+                  'Could not update: ${state.error}',
+                  style: TextStyle(color: Theme.of(context).colorScheme.error),
+                ),
+              ),
+            Expanded(child: _buildBody(context, state)),
+          ],
+        ),
       ),
     );
   }
@@ -68,6 +89,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     if (state.devices.isEmpty) {
       // ListView keeps pull-to-refresh working even when empty.
       return ListView(
+        physics: const AlwaysScrollableScrollPhysics(),
         children: [
           SizedBox(height: MediaQuery.of(context).size.height * 0.18),
           Center(
@@ -120,11 +142,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
         return DeviceCard(
           device: device,
           onDelete: () => _confirmRemove(device.id, device.name),
-          onTap: () => Navigator.of(context).push(
-            MaterialPageRoute(
-              builder: (_) => DeviceHistoryScreen(device: device),
-            ),
-          ),
+          onTap: () async {
+            await Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (_) => DeviceHistoryScreen(device: device),
+              ),
+            );
+            if (mounted) await refreshContent();
+          },
         );
       },
     );
@@ -155,9 +180,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
     try {
       await context.read<AppState>().removeDevice(id);
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Removed "$name"')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Removed "$name"')));
       }
     } catch (_) {
       if (mounted) {

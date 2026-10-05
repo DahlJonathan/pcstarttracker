@@ -131,3 +131,23 @@ func TestBoot_FirstBootNoBackfill(t *testing.T) {
 		t.Fatalf("events = %v, want [boot]", got)
 	}
 }
+
+func TestBoot_RetryDoesNotDuplicateHistory(t *testing.T) {
+	s, dev := newTestServer(t)
+	at := time.Now()
+	postEvent(t, s, dev, "boot", at)
+	postEvent(t, s, dev, "boot", at)
+	if got := events(t, s, dev); strings.Join(got, ",") != "boot" {
+		t.Fatalf("retry duplicated history: %v", got)
+	}
+}
+
+func TestBoot_QuickServiceRestartDoesNotInventShutdown(t *testing.T) {
+	s, dev := newTestServer(t)
+	at := time.Now()
+	postEvent(t, s, dev, "boot", at)
+	postEvent(t, s, dev, "boot", at.Add(10*time.Second))
+	if got := events(t, s, dev); strings.Join(got, ",") != "boot,boot" {
+		t.Fatalf("restart invented shutdown: %v", got)
+	}
+}

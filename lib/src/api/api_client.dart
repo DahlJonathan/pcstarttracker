@@ -16,7 +16,12 @@ class ApiException implements Exception {
 
 /// Thin REST client for the pc-tracker backend.
 class ApiClient {
-  ApiClient({required this.baseUrl, this.token});
+  ApiClient({required this.baseUrl, this.token, http.Client? client})
+    : _client = client ?? http.Client();
+
+  final http.Client _client;
+
+  void close() => _client.close();
 
   /// Backend base URL, e.g. `http://10.0.2.2:8080` (Android emulator -> host).
   final String baseUrl;
@@ -40,7 +45,7 @@ class ApiClient {
       _auth('/api/v1/auth/login', email, password);
 
   Future<String> _auth(String path, String email, String password) async {
-    final res = await http.post(
+    final res = await _client.post(
       _uri(path),
       headers: {'Content-Type': 'application/json'},
       body: jsonEncode({'email': email, 'password': password}),
@@ -53,7 +58,9 @@ class ApiClient {
 
   /// Fetches the signed-in user's devices with computed status.
   Future<List<Device>> listDevices() async {
-    final res = await http.get(_uri('/api/v1/devices'), headers: _headers);
+    final res = await _client
+        .get(_uri('/api/v1/devices'), headers: _headers)
+        .timeout(const Duration(seconds: 15));
     final body = _decode(res);
     final list = (body['devices'] as List<dynamic>? ?? const []);
     return list
@@ -63,7 +70,7 @@ class ApiClient {
 
   /// Claims a device for the signed-in user via a scanned QR token or a code.
   Future<void> claimDevice({String? pairingToken, String? code}) async {
-    final res = await http.post(
+    final res = await _client.post(
       _uri('/api/v1/pair/claim'),
       headers: _headers,
       body: jsonEncode({'pairing_token': ?pairingToken, 'code': ?code}),
@@ -73,7 +80,7 @@ class ApiClient {
 
   /// Unpairs (deletes) a device owned by the signed-in user.
   Future<void> deleteDevice(String id) async {
-    final res = await http.delete(
+    final res = await _client.delete(
       _uri('/api/v1/devices/$id'),
       headers: _headers,
     );
@@ -83,10 +90,9 @@ class ApiClient {
 
   /// Fetches a device's boot/shutdown history, newest first.
   Future<List<DeviceEvent>> listDeviceEvents(String id) async {
-    final res = await http.get(
-      _uri('/api/v1/devices/$id/history'),
-      headers: _headers,
-    );
+    final res = await _client
+        .get(_uri('/api/v1/devices/$id/history'), headers: _headers)
+        .timeout(const Duration(seconds: 15));
     final body = _decode(res);
     final list = (body['events'] as List<dynamic>? ?? const []);
     return list

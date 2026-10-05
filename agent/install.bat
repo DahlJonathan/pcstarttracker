@@ -27,25 +27,36 @@ echo Open the PC Status app on your phone, tap "Add Device",
 echo and scan the QR (or type the code). This installer continues
 echo automatically once pairing is complete.
 echo.
-powershell -NoProfile -Command "$p = Start-Process -FilePath (Join-Path $PWD 'pc-agent.exe') -ArgumentList 'pair' -WindowStyle Hidden -Wait -PassThru; exit $p.ExitCode"
+powershell -NoProfile -Command "$ErrorActionPreference = 'Stop'; $dir = Join-Path $env:ProgramData 'PCStatusAgent'; New-Item -ItemType Directory -Path $dir -Force | Out-Null; $p = Start-Process -FilePath (Join-Path $PWD 'pc-agent.exe') -ArgumentList 'pair' -WindowStyle Hidden -RedirectStandardOutput (Join-Path $dir 'pair.log') -RedirectStandardError (Join-Path $dir 'pair-error.log') -Wait -PassThru; exit $p.ExitCode"
 if %errorlevel% neq 0 (
     echo.
-    echo Pairing was not completed ^(the code may have expired or the PC
-    echo is already paired^). Nothing was installed. Run install.bat again,
-    echo or run "pc-agent.exe reset" first if this PC was paired before.
+    echo Pairing was not completed. Nothing was installed.
+    echo Check "%ProgramData%\PCStatusAgent\pair-error.log".
+    echo Run install.bat again to try a new code.
     echo.
     pause
     exit /b 1
 )
 
 echo Step 2/3: Installing the background service...
-start "" /wait pc-agent.exe install
+powershell -NoProfile -Command "$ErrorActionPreference = 'Stop'; try { $s = Get-Service -Name PCStatusAgent -ErrorAction SilentlyContinue; if ($null -ne $s) { Stop-Service -InputObject $s; $s.WaitForStatus('Stopped', [TimeSpan]::FromSeconds(20)) }; $dir = Join-Path $env:ProgramData 'PCStatusAgent'; New-Item -ItemType Directory -Path $dir -Force | Out-Null; $source = Join-Path $PWD 'pc-agent.exe'; $dest = Join-Path $dir 'pc-agent.exe'; if ($source -ne $dest) { Copy-Item -LiteralPath $source -Destination $dest -Force }; & $dest install; exit $LASTEXITCODE } catch { Write-Error $_; exit 1 }"
+if errorlevel 1 goto failed
 
 echo Step 3/3: Starting the service...
-start "" /wait pc-agent.exe start
+pc-agent.exe start
+if errorlevel 1 goto failed
 
 echo.
 echo Done. The agent is installed and will start automatically
 echo every time this PC boots. It runs invisibly in the background.
 echo.
 pause
+exit /b 0
+
+:failed
+echo.
+echo ERROR: The background service was not installed or started correctly.
+echo Check the error above and "%ProgramData%\PCStatusAgent\agent.log".
+echo Pairing data has been kept. Fix the error and run install.bat again.
+pause
+exit /b 1

@@ -22,16 +22,26 @@ echo  PC Status Agent - uninstall
 echo ============================================================
 echo.
 echo Stopping the service...
-start "" /wait pc-agent.exe stop
+pc-agent.exe stop
+if errorlevel 1 goto failed
 
 echo Removing the service...
-start "" /wait pc-agent.exe uninstall
+pc-agent.exe uninstall
+if errorlevel 1 goto failed
 
 echo Removing pairing data...
-start "" /wait pc-agent.exe reset
+pc-agent.exe reset
+if errorlevel 1 goto failed
 
 echo.
 echo Done. The agent service has been stopped and removed, and this
 echo PC has been unpaired. Running install again will show a new QR code.
 echo.
 pause
+exit /b 0
+
+:failed
+echo.
+echo ERROR: Uninstall did not complete. See the error above.
+pause
+exit /b 1

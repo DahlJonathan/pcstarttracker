@@ -4,10 +4,12 @@ package winsvc
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log"
 	"time"
 
+	"golang.org/x/sys/windows"
 	"golang.org/x/sys/windows/svc"
 	"golang.org/x/sys/windows/svc/mgr"
 
@@ -54,9 +56,11 @@ func (h *handler) Execute(_ []string, req <-chan svc.ChangeRequest, status chan<
 			case svc.Interrogate:
 				status <- c.CurrentStatus
 			case svc.Stop, svc.Shutdown, svc.PreShutdown:
+				log.Printf("service control %d: stopping", c.Cmd)
 				// Tell the SCM we need a moment, then send the final event.
 				status <- svc.Status{State: svc.StopPending, WaitHint: 10000}
 				cancel()
+				<-done
 				h.runner.SendShutdown()
 				return false, 0
 			default:
@@ -81,22 +85,48 @@ func Install(exePath string) error {
 	}
 	defer m.Disconnect()
 
-	if s, err := m.OpenService(ServiceName); err == nil {
-		s.Close()
-		return fmt.Errorf("service %s already installed", ServiceName)
-	}
-
-	s, err := m.CreateService(ServiceName, exePath, mgr.Config{
+	c := mgr.Config{
+		ServiceType:      windows.SERVICE_WIN32_OWN_PROCESS,
+		ErrorControl:     mgr.ErrorNormal,
 		DisplayName:      "PC Status Agent",
 		Description:      "Reports this PC's power status to the PC Status app.",
 		StartType:        mgr.StartAutomatic,
-		DelayedAutoStart: true,
-	}, "run")
+		DelayedAutoStart: false,
+	}
+	s, err := m.OpenService(ServiceName)
+	if errors.Is(err, windows.ERROR_SERVICE_DOES_NOT_EXIST) {
+		s, err = m.CreateService(ServiceName, exePath, c, "run")
+	} else if err == nil {
+		defer s.Close()
+		st, queryErr := s.Query()
+		if queryErr != nil {
+			return queryErr
+		}
+		if st.State != svc.Stopped {
+			return fmt.Errorf("stop service %s before updating it", ServiceName)
+		}
+		c.BinaryPathName = windows.EscapeArg(exePath) + " run"
+		if err := s.UpdateConfig(c); err != nil {
+			return fmt.Errorf("update service: %w", err)
+		}
+		return configureRecovery(s)
+	}
 	if err != nil {
 		return err
 	}
 	defer s.Close()
-	return nil
+	return configureRecovery(s)
+}
+
+func configureRecovery(s *mgr.Service) error {
+	if err := s.SetRecoveryActions([]mgr.RecoveryAction{
+		{Type: mgr.ServiceRestart, Delay: 5 * time.Second},
+		{Type: mgr.ServiceRestart, Delay: 15 * time.Second},
+		{Type: mgr.ServiceRestart, Delay: 30 * time.Second},
+	}, 86400); err != nil {
+		return fmt.Errorf("configure service recovery: %w", err)
+	}
+	return s.SetRecoveryActionsOnNonCrashFailures(true)
 }
 
 // Uninstall removes the Windows service.
@@ -108,6 +138,9 @@ func Uninstall() error {
 	defer m.Disconnect()
 
 	s, err := m.OpenService(ServiceName)
+	if errors.Is(err, windows.ERROR_SERVICE_DOES_NOT_EXIST) {
+		return nil
+	}
 	if err != nil {
 		return fmt.Errorf("service %s not installed", ServiceName)
 	}
@@ -128,7 +161,26 @@ func Start() error {
 		return err
 	}
 	defer s.Close()
-	return s.Start("run")
+	if err := s.Start("run"); err != nil {
+		return err
+	}
+	deadline := time.Now().Add(20 * time.Second)
+	for {
+		st, err := s.Query()
+		if err != nil {
+			return err
+		}
+		if st.State == svc.Running {
+			return nil
+		}
+		if st.State == svc.Stopped {
+			return fmt.Errorf("service stopped during startup (exit=%d); check %s\\agent.log", st.Win32ExitCode, config.Dir())
+		}
+		if time.Now().After(deadline) {
+			return fmt.Errorf("timed out waiting for service to run; check %s\\agent.log", config.Dir())
+		}
+		time.Sleep(300 * time.Millisecond)
+	}
 }
 
 // Stop stops the installed service, waiting briefly for it to settle.
@@ -140,11 +192,21 @@ func Stop() error {
 	defer m.Disconnect()
 
 	s, err := m.OpenService(ServiceName)
+	if errors.Is(err, windows.ERROR_SERVICE_DOES_NOT_EXIST) {
+		return nil
+	}
 	if err != nil {
 		return err
 	}
 	defer s.Close()
 
+	current, err := s.Query()
+	if err != nil {
+		return err
+	}
+	if current.State == svc.Stopped {
+		return nil
+	}
 	st, err := s.Control(svc.Stop)
 	if err != nil {
 		return err

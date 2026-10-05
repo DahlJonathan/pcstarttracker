@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart';
+import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../api/api_client.dart';
@@ -7,12 +8,13 @@ import '../models/device_event.dart';
 
 /// Default backend URL. Points at the deployed Railway backend; users can
 /// override it from the login screen's settings for local development.
-const String kDefaultBaseUrl = 'https://pcstarttracker-production.up.railway.app';
+const String kDefaultBaseUrl =
+    'https://pcstarttracker-production.up.railway.app';
 
 /// Top-level app state: authentication, the API client and the device list.
 class AppState extends ChangeNotifier {
-  AppState._(this._prefs, this._baseUrl, String? token)
-    : _api = ApiClient(baseUrl: _baseUrl, token: token);
+  AppState._(this._prefs, this._baseUrl, String? token, http.Client? client)
+    : _api = ApiClient(baseUrl: _baseUrl, token: token, client: client);
 
   final SharedPreferences _prefs;
   String _baseUrl;
@@ -26,11 +28,17 @@ class AppState extends ChangeNotifier {
   static const _kBaseUrl = 'base_url';
 
   /// Loads persisted auth state from disk.
-  static Future<AppState> load() async {
+  static Future<AppState> load({http.Client? client}) async {
     final prefs = await SharedPreferences.getInstance();
     final baseUrl = prefs.getString(_kBaseUrl) ?? kDefaultBaseUrl;
     final token = prefs.getString(_kToken);
-    return AppState._(prefs, baseUrl, token);
+    return AppState._(prefs, baseUrl, token, client);
+  }
+
+  @override
+  void dispose() {
+    _api.close();
+    super.dispose();
   }
 
   bool get isSignedIn => _api.token != null;
@@ -66,6 +74,7 @@ class AppState extends ChangeNotifier {
 
   /// Fetches devices, updating loading/error flags for the UI.
   Future<void> refreshDevices() async {
+    if (_loading || !isSignedIn) return;
     _loading = true;
     _error = null;
     notifyListeners();
@@ -77,6 +86,7 @@ class AppState extends ChangeNotifier {
         await signOut();
       }
     } catch (e) {
+      debugPrint('Device refresh failed: $e');
       _error = 'Could not reach the server.';
     } finally {
       _loading = false;
@@ -95,5 +105,6 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<List<DeviceEvent>> deviceHistory(String id) => _api.listDeviceEvents(id);
+  Future<List<DeviceEvent>> deviceHistory(String id) =>
+      _api.listDeviceEvents(id);
 }

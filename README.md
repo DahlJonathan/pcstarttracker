@@ -31,7 +31,7 @@ your phone. Three components:
 4. Agent runs silently as a Windows service on startup.
 
 **Status rules** (see [`server/internal/status/status.go`](server/internal/status/status.go)):
-- `ONLINE` — last heartbeat within **150 s** AND last event is not `shutdown`.
+- `ONLINE` — last heartbeat within **45 s** AND last event is not `shutdown`.
 - `OFFLINE` — graceful shutdown recorded, OR heartbeat timed out (sudden power
   loss, crash, sleep), OR never seen.
 
@@ -58,7 +58,7 @@ Relationships: a **user** has many **devices**; a **device** has many
 | GET  | `/api/v1/pair/status?token=` | — | Agent polls for its device token |
 | POST | `/api/v1/pair/claim` | user JWT | Phone binds device to account |
 | POST | `/api/v1/devices/{id}/events` | device token | `boot` / `shutdown` |
-| POST | `/api/v1/devices/{id}/heartbeat` | device token | keep-alive (60 s) |
+| POST | `/api/v1/devices/{id}/heartbeat` | device token | keep-alive (15 s) |
 | GET  | `/api/v1/devices` | user JWT | List devices + computed status |
 
 ---
@@ -99,10 +99,28 @@ go build -o pc-agent.exe .
 Install as a background Windows service (run in an **Administrator** prompt):
 
 ```powershell
-.\pc-agent.exe pair       # one-time pairing
-.\pc-agent.exe install    # register auto-start service
-.\pc-agent.exe start
+.\install.bat
 ```
+
+Keep `install.bat`, `uninstall.bat`, and the newly built `pc-agent.exe` together.
+The installer pairs once, stops an existing service if needed, copies the binary
+to `%ProgramData%\PCStatusAgent\pc-agent.exe`, registers or updates an automatic
+(not delayed) service, and checks that it reaches Running. Failures stop the
+installer instead of reporting success. Running the installer again **preserves
+pairing and server history**; uninstalling clears local pairing data.
+
+The service restarts automatically after unexpected failures. Startup errors,
+telemetry failures, and Go crash output are recorded in
+`%ProgramData%\PCStatusAgent\agent.log`. To diagnose missing events:
+
+```powershell
+Get-Service PCStatusAgent
+Get-Content "$env:ProgramData\PCStatusAgent\agent.log" -Tail 50
+```
+
+Railway should receive a boot event on service startup and heartbeats every
+15 seconds. If these requests are absent, fix the PC service first: refreshing
+the phone cannot create telemetry that the PC never sent.
 
 The service intercepts `SERVICE_CONTROL_SHUTDOWN` / `PRESHUTDOWN` / `STOP` to
 send a final `shutdown` event (see
@@ -111,6 +129,17 @@ Boot events use exponential backoff for slow network init
 ([`agent/internal/agent/runner.go`](agent/internal/agent/runner.go)).
 
 Config is stored at `%ProgramData%\PCStatusAgent\config.json`.
+Shutdown events are saved here before delivery and replayed before the next
+boot event if delivery failed. Retries preserve the original event timestamp;
+the server ignores identical event retries. An unexpected power loss cannot
+provide an exact shutdown timestamp. The existing server fallback only infers
+a missing shutdown when a subsequent boot follows a heartbeat gap longer than
+45 seconds; this time is an estimate, not proof of a physical shutdown.
+
+Deploy the server and update the PC agent together when switching from the old
+60-second heartbeat interval. A lost connection is detected within about
+45 seconds of the last heartbeat, not instantly, and can also mean sleep,
+network failure, or an agent failure.
 
 ---
 
@@ -131,6 +160,11 @@ Key files:
 - Dashboard + pull-to-refresh: [`lib/src/screens/dashboard_screen.dart`](lib/src/screens/dashboard_screen.dart)
 - Device card: [`lib/src/widgets/device_card.dart`](lib/src/widgets/device_card.dart)
 - QR pairing: [`lib/src/screens/pair_screen.dart`](lib/src/screens/pair_screen.dart)
+
+The visible dashboard and history refresh automatically every 10 seconds and
+when the app returns to the foreground. Pull-to-refresh remains available.
+Polling pauses in the background and does not overlap in-flight refreshes.
+Connection failures are shown rather than silently replacing existing data.
 
 ---
 

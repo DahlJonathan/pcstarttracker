@@ -6,6 +6,8 @@ import (
 	"log"
 	"os"
 	"os/signal"
+	"path/filepath"
+	"runtime/debug"
 	"syscall"
 
 	"pc-tracker-agent/internal/agent"
@@ -21,6 +23,26 @@ const defaultServerURL = "https://pcstarttracker-production.up.railway.app"
 func main() {
 	log.SetFlags(log.LstdFlags | log.Lmsgprefix)
 	log.SetPrefix("[pc-agent] ")
+
+	isSvc, err := winsvc.IsWindowsService()
+	if err != nil {
+		log.Fatalf("detect service: %v", err)
+	}
+	if isSvc {
+		if err := os.MkdirAll(config.Dir(), 0o755); err != nil {
+			log.Fatalf("create log directory: %v", err)
+		}
+		f, err := os.OpenFile(filepath.Join(config.Dir(), "agent.log"), os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0o600)
+		if err != nil {
+			log.Fatalf("open service log: %v", err)
+		}
+		defer f.Close()
+		log.SetOutput(f)
+		if err := debug.SetCrashOutput(f, debug.CrashOptions{}); err != nil {
+			log.Fatalf("capture service crashes: %v", err)
+		}
+		log.Printf("service process starting")
+	}
 
 	serverURL := defaultServerURL
 	if v := os.Getenv("PC_TRACKER_SERVER"); v != "" {
@@ -38,7 +60,10 @@ func main() {
 	client := api.New(cfg.ServerURL)
 
 	// If the SCM started us, always run as a service.
-	if isSvc, _ := winsvc.IsWindowsService(); isSvc {
+	if isSvc {
+		if !cfg.Paired() {
+			log.Fatal("service is not paired; run install.bat to pair this computer")
+		}
 		if err := winsvc.RunService(cfg, client); err != nil {
 			log.Fatalf("service: %v", err)
 		}
@@ -102,9 +127,14 @@ func runInteractive(cfg *config.Config, client *api.Client) {
 	}
 
 	runner := agent.NewRunner(cfg, client)
-	go runner.Run(ctx)
+	done := make(chan struct{})
+	go func() {
+		runner.Run(ctx)
+		close(done)
+	}()
 
 	<-ctx.Done()
+	<-done
 	log.Printf("stopping; sending shutdown event...")
 	runner.SendShutdown()
 }

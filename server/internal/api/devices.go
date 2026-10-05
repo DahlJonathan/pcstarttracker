@@ -40,6 +40,18 @@ func (s *Server) handleEvent(w http.ResponseWriter, r *http.Request) {
 	}
 	defer func() { _ = tx.Rollback() }()
 
+	var duplicate int
+	if err := tx.QueryRowContext(r.Context(),
+		`SELECT COUNT(*) FROM device_events WHERE device_id = ? AND event = ? AND created_at = ?`,
+		deviceID, in.Event, ts).Scan(&duplicate); err != nil {
+		writeError(w, http.StatusInternalServerError, "could not check event")
+		return
+	}
+	if duplicate != 0 {
+		w.WriteHeader(http.StatusAccepted)
+		return
+	}
+
 	// When a boot arrives, the machine must have been off since we last heard
 	// from it. The agent tries to send a graceful "shutdown" on power-off, but
 	// the network is frequently torn down before it can, so that event is often
@@ -58,7 +70,7 @@ func (s *Server) handleEvent(w http.ResponseWriter, r *http.Request) {
 			if offAt == "" {
 				offAt = prevBoot.String
 			}
-			if offAt != "" && timeLess(offAt, ts) {
+			if offAt != "" && heartbeatGap(offAt, ts) {
 				if _, err := tx.ExecContext(r.Context(),
 					`INSERT INTO device_events (device_id, event, created_at) VALUES (?, 'shutdown', ?)`,
 					deviceID, offAt); err != nil {
@@ -128,7 +140,7 @@ func (s *Server) handleListDevices(w http.ResponseWriter, r *http.Request) {
 	devices := make([]models.Device, 0)
 	for rows.Next() {
 		var (
-			d                                              models.Device
+			d                                                models.Device
 			lastEvent, lastBoot, lastShut, lastBeat, created sql.NullString
 		)
 		if err := rows.Scan(&d.ID, &d.Name, &lastEvent, &lastBoot, &lastShut, &lastBeat, &created); err != nil {
@@ -241,15 +253,14 @@ func parseTimestamp(s string) string {
 	return time.Now().UTC().Format(time.RFC3339Nano)
 }
 
-// timeLess reports whether timestamp a is strictly before b. Both are expected
-// to be RFC3339 strings; a parse failure yields false (no backfill).
-func timeLess(a, b string) bool {
+// A service restart without a heartbeat gap is not evidence of a power-off.
+func heartbeatGap(a, b string) bool {
 	ta, erra := time.Parse(time.RFC3339Nano, a)
 	tb, errb := time.Parse(time.RFC3339Nano, b)
 	if erra != nil || errb != nil {
 		return false
 	}
-	return ta.Before(tb)
+	return tb.Sub(ta) > status.HeartbeatTimeout
 }
 
 func nullTime(s sql.NullString) *time.Time {

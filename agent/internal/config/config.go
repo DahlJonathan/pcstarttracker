@@ -5,16 +5,18 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/google/uuid"
 )
 
 // Config is the agent's persistent state, stored as JSON on disk.
 type Config struct {
-	ServerURL   string `json:"server_url"`
-	DeviceID    string `json:"device_id"`    // persistent machine UUID
-	DeviceName  string `json:"device_name"`  // friendly name shown in the app
-	DeviceToken string `json:"device_token"` // permanent bearer token (empty until paired)
+	ServerURL       string     `json:"server_url"`
+	DeviceID        string     `json:"device_id"`    // persistent machine UUID
+	DeviceName      string     `json:"device_name"`  // friendly name shown in the app
+	DeviceToken     string     `json:"device_token"` // permanent bearer token (empty until paired)
+	PendingShutdown *time.Time `json:"pending_shutdown,omitempty"`
 }
 
 // Paired reports whether onboarding is complete.

@@ -4,7 +4,12 @@ import '../models/device.dart';
 
 /// A dashboard card showing one PC's name, status indicator and timestamps.
 class DeviceCard extends StatelessWidget {
-  const DeviceCard({super.key, required this.device, this.onDelete, this.onTap});
+  const DeviceCard({
+    super.key,
+    required this.device,
+    this.onDelete,
+    this.onTap,
+  });
 
   final Device device;
   final VoidCallback? onDelete;
@@ -15,7 +20,7 @@ class DeviceCard extends StatelessWidget {
     final theme = Theme.of(context);
     final online = device.isOnline;
     final color = online ? const Color(0xFF22C55E) : const Color(0xFF94A3B8);
-    final label = online ? 'On' : 'Off';
+    final label = online ? 'On' : 'Offline';
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 7),

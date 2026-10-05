@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import '../models/device.dart';
 import '../models/device_event.dart';
 import '../state/app_state.dart';
+import '../widgets/auto_refresh.dart';
 
 /// Shows one device's boot/shutdown history, grouped by day.
 class DeviceHistoryScreen extends StatefulWidget {
@@ -16,8 +17,14 @@ class DeviceHistoryScreen extends StatefulWidget {
   State<DeviceHistoryScreen> createState() => _DeviceHistoryScreenState();
 }
 
-class _DeviceHistoryScreenState extends State<DeviceHistoryScreen> {
+class _DeviceHistoryScreenState extends State<DeviceHistoryScreen>
+    with WidgetsBindingObserver, AutoRefresh<DeviceHistoryScreen> {
   late Future<List<DeviceEvent>> _future;
+  bool _refreshingHistory = false;
+  String? _refreshError;
+
+  @override
+  Future<void> refreshContent() => _refresh();
 
   @override
   void initState() {
@@ -29,37 +36,74 @@ class _DeviceHistoryScreenState extends State<DeviceHistoryScreen> {
       context.read<AppState>().deviceHistory(widget.device.id);
 
   Future<void> _refresh() async {
-    final events = await _load();
-    if (mounted) setState(() => _future = Future.value(events));
+    if (_refreshingHistory) return;
+    _refreshingHistory = true;
+    try {
+      final events = await _load();
+      if (mounted) {
+        setState(() {
+          _future = Future.value(events);
+          _refreshError = null;
+        });
+      }
+    } catch (error, stack) {
+      debugPrint('History refresh failed: $error\n$stack');
+      if (mounted) {
+        setState(
+          () => _refreshError = 'Could not update history. Pull down to retry.',
+        );
+      }
+    } finally {
+      _refreshingHistory = false;
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: Text(widget.device.name)),
-      body: RefreshIndicator(
-        onRefresh: _refresh,
-        child: FutureBuilder<List<DeviceEvent>>(
-          future: _future,
-          builder: (context, snapshot) {
-            if (snapshot.connectionState == ConnectionState.waiting) {
-              return const Center(child: CircularProgressIndicator());
-            }
-            if (snapshot.hasError) {
-              return _message('Could not load history. Pull down to retry.');
-            }
-            final events = snapshot.data ?? const [];
-            if (events.isEmpty) {
-              return _message('Nothing here yet.\nActivity will show up once the computer turns on or off.');
-            }
-            return _buildList(context, events);
-          },
-        ),
+      body: Column(
+        children: [
+          if (_refreshError != null)
+            Padding(
+              padding: const EdgeInsets.all(12),
+              child: Text(
+                _refreshError!,
+                style: TextStyle(color: Theme.of(context).colorScheme.error),
+              ),
+            ),
+          Expanded(
+            child: RefreshIndicator(
+              onRefresh: _refresh,
+              child: FutureBuilder<List<DeviceEvent>>(
+                future: _future,
+                builder: (context, snapshot) {
+                  if (snapshot.connectionState == ConnectionState.waiting) {
+                    return const Center(child: CircularProgressIndicator());
+                  }
+                  if (snapshot.hasError) {
+                    return _message(
+                      'Could not load history. Pull down to retry.',
+                    );
+                  }
+                  final events = snapshot.data ?? const [];
+                  if (events.isEmpty) {
+                    return _message(
+                      'Nothing here yet.\nActivity will show up once the computer turns on or off.',
+                    );
+                  }
+                  return _buildList(context, events);
+                },
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
 
   Widget _message(String text) => ListView(
+    physics: const AlwaysScrollableScrollPhysics(),
     children: [
       SizedBox(height: MediaQuery.of(context).size.height * 0.3),
       Center(child: Text(text, textAlign: TextAlign.center)),
@@ -84,9 +128,9 @@ class _DeviceHistoryScreenState extends State<DeviceHistoryScreen> {
               padding: const EdgeInsets.fromLTRB(16, 20, 16, 8),
               child: Text(
                 _dayLabel(day),
-                style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.w700,
-                ),
+                style: Theme.of(
+                  context,
+                ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
               ),
             ),
             ...dayEvents.map((e) => _EventTile(event: e)),
