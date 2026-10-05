@@ -69,6 +69,16 @@ func Load(defaultServerURL string) (*Config, error) {
 	return cfg, nil
 }
 
+// Remove deletes the persisted config (including pairing state) from disk.
+// It is a no-op when the file does not exist, so it is safe to call on a PC
+// that was never paired.
+func Remove() error {
+	if err := os.Remove(path()); err != nil && !os.IsNotExist(err) {
+		return fmt.Errorf("remove config: %w", err)
+	}
+	return nil
+}
+
 // Save atomically persists the config to disk.
 func (c *Config) Save() error {
 	if err := os.MkdirAll(Dir(), 0o755); err != nil {

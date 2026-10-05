@@ -58,6 +58,9 @@ func main() {
 	case "uninstall":
 		mustAdmin(winsvc.Uninstall())
 		fmt.Println("Service uninstalled.")
+	case "reset":
+		mustAdmin(config.Remove())
+		fmt.Println("Pairing data removed. Run 'pc-agent pair' to pair this PC again.")
 	case "start":
 		mustAdmin(winsvc.Start())
 		fmt.Println("Service started.")
@@ -134,6 +137,7 @@ Usage:
   pc-agent start       Start the installed service (admin)
   pc-agent stop        Stop the installed service (admin)
   pc-agent uninstall   Remove the Windows service (admin)
+  pc-agent reset       Remove local pairing data (shows QR again on next pair)
 
 Environment:
   PC_TRACKER_SERVER    Backend base URL (default http://localhost:8080)

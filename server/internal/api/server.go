@@ -76,6 +76,20 @@ func (s *Server) requireUser(next http.Handler) http.Handler {
 			writeError(w, http.StatusUnauthorized, "invalid token")
 			return
 		}
+		// The token signature can be valid while the account no longer exists
+		// (e.g. the database was reset). Reject such tokens so the client is
+		// forced to sign in again instead of hitting downstream FK errors.
+		var exists int
+		err = s.DB.QueryRowContext(r.Context(),
+			`SELECT 1 FROM users WHERE id = ?`, uid).Scan(&exists)
+		if err == sql.ErrNoRows {
+			writeError(w, http.StatusUnauthorized, "account not found; please sign in again")
+			return
+		}
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "auth lookup failed")
+			return
+		}
 		ctx := context.WithValue(r.Context(), ctxUserID, uid)
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})

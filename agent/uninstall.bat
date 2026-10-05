@@ -27,7 +27,11 @@ start "" /wait pc-agent.exe stop
 echo Removing the service...
 start "" /wait pc-agent.exe uninstall
 
+echo Removing pairing data...
+start "" /wait pc-agent.exe reset
+
 echo.
-echo Done. The agent service has been stopped and removed.
+echo Done. The agent service has been stopped and removed, and this
+echo PC has been unpaired. Running install again will show a new QR code.
 echo.
 pause
