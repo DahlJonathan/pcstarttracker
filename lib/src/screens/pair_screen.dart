@@ -6,6 +6,7 @@ import 'package:provider/provider.dart';
 
 import '../api/api_client.dart';
 import '../state/app_state.dart';
+import '../widgets/screen_layout.dart';
 
 /// Pairing screen: scan the computer's QR code or enter the 6-digit code.
 ///
@@ -73,9 +74,9 @@ class _PairScreenState extends State<PairScreen> with WidgetsBindingObserver {
         code: code,
       );
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Computer added 🎉')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Computer added 🎉')));
       Navigator.of(context).pop(true);
     } on ApiException catch (e) {
       _showError(e.message);
@@ -105,110 +106,130 @@ class _PairScreenState extends State<PairScreen> with WidgetsBindingObserver {
     final theme = Theme.of(context);
     return Scaffold(
       appBar: AppBar(title: const Text('Add a computer')),
-      body: Column(
-        children: [
-          Expanded(
-            child: Container(
-              margin: const EdgeInsets.fromLTRB(16, 8, 16, 16),
-              clipBehavior: Clip.antiAlias,
-              decoration: BoxDecoration(
-                color: Colors.black,
-                borderRadius: BorderRadius.circular(24),
+      body: ScreenLayout(
+        child: LayoutBuilder(
+          builder: (context, constraints) => ListView(
+            padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
+            children: [
+              const SectionHeader(
+                title: 'Connect your computer',
+                subtitle:
+                    'Open the PC agent on your computer, then scan its QR code or enter the pairing code.',
+                icon: Icons.qr_code_scanner_rounded,
               ),
-              child: Stack(
-                alignment: Alignment.center,
-                children: [
-                  MobileScanner(
-                    controller: _scanner,
-                    onDetect: _onDetect,
-                    errorBuilder: (context, error, child) =>
-                        _CameraError(error: error, onRetry: _startCamera),
+              const SizedBox(height: 24),
+              SizedBox(
+                height: (constraints.maxHeight * 0.45).clamp(280.0, 400.0),
+                child: Container(
+                  clipBehavior: Clip.antiAlias,
+                  decoration: BoxDecoration(
+                    color: Colors.black,
+                    borderRadius: BorderRadius.circular(24),
                   ),
-                  const _ScannerOverlay(),
-                  Positioned(
-                    bottom: 16,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 8,
+                  child: Stack(
+                    alignment: Alignment.center,
+                    children: [
+                      MobileScanner(
+                        controller: _scanner,
+                        onDetect: _onDetect,
+                        errorBuilder: (context, error) =>
+                            _CameraError(error: error, onRetry: _startCamera),
                       ),
-                      decoration: BoxDecoration(
-                        color: Colors.black54,
-                        borderRadius: BorderRadius.circular(999),
-                      ),
-                      child: const Text(
-                        'Point the camera at the QR code',
-                        style: TextStyle(color: Colors.white),
-                      ),
-                    ),
-                  ),
-                  if (_busy)
-                    Container(
-                      color: Colors.black45,
-                      child: const Center(child: CircularProgressIndicator()),
-                    ),
-                ],
-              ),
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
-            child: Column(
-              children: [
-                Row(
-                  children: [
-                    const Expanded(child: Divider()),
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 12),
-                      child: Text(
-                        'or type the code',
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          color: theme.colorScheme.outline,
+                      const _ScannerOverlay(),
+                      Positioned(
+                        bottom: 16,
+                        left: 16,
+                        right: 16,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 8,
+                          ),
+                          decoration: BoxDecoration(
+                            color: Colors.black54,
+                            borderRadius: BorderRadius.circular(999),
+                          ),
+                          child: const Text(
+                            'Point the camera at the QR code',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(color: Colors.white),
+                          ),
                         ),
                       ),
+                      if (_busy)
+                        Container(
+                          color: Colors.black45,
+                          child: const Center(
+                            child: CircularProgressIndicator(),
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.only(top: 24),
+                child: Column(
+                  children: [
+                    Row(
+                      children: [
+                        const Expanded(child: Divider()),
+                        Flexible(
+                          flex: 3,
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 12),
+                            child: Text(
+                              'or type the code',
+                              textAlign: TextAlign.center,
+                              style: theme.textTheme.bodySmall?.copyWith(
+                                color: theme.colorScheme.onSurfaceVariant,
+                              ),
+                            ),
+                          ),
+                        ),
+                        const Expanded(child: Divider()),
+                      ],
                     ),
-                    const Expanded(child: Divider()),
+                    const SizedBox(height: 16),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        TextField(
+                          controller: _code,
+                          keyboardType: TextInputType.number,
+                          maxLength: 6,
+                          style: const TextStyle(
+                            fontSize: 22,
+                            letterSpacing: 6,
+                            fontWeight: FontWeight.w600,
+                          ),
+                          decoration: const InputDecoration(
+                            labelText: '6-digit code',
+                            counterText: '',
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        FilledButton(
+                          onPressed: _busy
+                              ? null
+                              : () {
+                                  final c = _code.text.trim();
+                                  if (c.length == 6) {
+                                    _claim(code: c);
+                                  } else {
+                                    _showError('Enter the 6-digit code');
+                                  }
+                                },
+                          child: const Text('Add'),
+                        ),
+                      ],
+                    ),
                   ],
                 ),
-                const SizedBox(height: 16),
-                Row(
-                  children: [
-                    Expanded(
-                      child: TextField(
-                        controller: _code,
-                        keyboardType: TextInputType.number,
-                        maxLength: 6,
-                        style: const TextStyle(
-                          fontSize: 22,
-                          letterSpacing: 6,
-                          fontWeight: FontWeight.w600,
-                        ),
-                        decoration: const InputDecoration(
-                          labelText: '6-digit code',
-                          counterText: '',
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    FilledButton(
-                      onPressed: _busy
-                          ? null
-                          : () {
-                              final c = _code.text.trim();
-                              if (c.length == 6) {
-                                _claim(code: c);
-                              } else {
-                                _showError('Enter the 6-digit code');
-                              }
-                            },
-                      child: const Text('Add'),
-                    ),
-                  ],
-                ),
-              ],
-            ),
+              ),
+            ],
           ),
-        ],
+        ),
       ),
     );
   }
@@ -246,33 +267,35 @@ class _CameraError extends StatelessWidget {
       color: Colors.black,
       padding: const EdgeInsets.all(28),
       alignment: Alignment.center,
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const Icon(
-            Icons.photo_camera_outlined,
-            size: 56,
-            color: Colors.white70,
-          ),
-          const SizedBox(height: 16),
-          Text(
-            denied
-                ? 'We need camera access to scan the QR code.\n\n'
-                      'Turn on Camera for this app in your phone settings, '
-                      'then tap Try again — or just type the 6-digit code below.'
-                : 'The camera could not be started.\n\n'
-                      'No problem — type the 6-digit code shown on your '
-                      'computer below instead.',
-            textAlign: TextAlign.center,
-            style: const TextStyle(color: Colors.white, height: 1.4),
-          ),
-          const SizedBox(height: 20),
-          FilledButton.icon(
-            onPressed: onRetry,
-            icon: const Icon(Icons.refresh),
-            label: const Text('Try again'),
-          ),
-        ],
+      child: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(
+              Icons.photo_camera_outlined,
+              size: 56,
+              color: Colors.white70,
+            ),
+            const SizedBox(height: 16),
+            Text(
+              denied
+                  ? 'We need camera access to scan the QR code.\n\n'
+                        'Turn on Camera for this app in your phone settings, '
+                        'then tap Try again — or just type the 6-digit code below.'
+                  : 'The camera could not be started.\n\n'
+                        'No problem — type the 6-digit code shown on your '
+                        'computer below instead.',
+              textAlign: TextAlign.center,
+              style: const TextStyle(color: Colors.white, height: 1.4),
+            ),
+            const SizedBox(height: 20),
+            FilledButton.icon(
+              onPressed: onRetry,
+              icon: const Icon(Icons.refresh),
+              label: const Text('Try again'),
+            ),
+          ],
+        ),
       ),
     );
   }

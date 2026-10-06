@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 
 import '../api/api_client.dart';
 import '../state/app_state.dart';
+import '../widgets/screen_layout.dart';
 
 /// Login / sign-up screen. Toggles between the two modes.
 class LoginScreen extends StatefulWidget {
@@ -55,47 +56,59 @@ class _LoginScreenState extends State<LoginScreen> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     return Scaffold(
-      body: Center(
+      body: SafeArea(
+        child: Center(
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(24),
           child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 420),
+            constraints: const BoxConstraints(maxWidth: 460),
             child: Form(
               key: _formKey,
               child: Column(
                 mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  Container(
-                    width: 96,
-                    height: 96,
-                    decoration: BoxDecoration(
-                      color: theme.colorScheme.primaryContainer,
-                      borderRadius: BorderRadius.circular(28),
-                    ),
-                    child: Icon(
-                      Icons.devices_rounded,
-                      size: 52,
-                      color: theme.colorScheme.onPrimaryContainer,
-                    ),
-                  ),
-                  const SizedBox(height: 20),
-                  Text(
-                    'Home PCs',
-                    style: theme.textTheme.headlineMedium?.copyWith(
-                      fontWeight: FontWeight.w800,
-                    ),
-                  ),
-                  const SizedBox(height: 6),
-                  Text(
-                    _isSignup
-                        ? 'Create an account to keep an eye on\nyour family computers.'
-                        : 'Welcome back! See which computers\nare on at a glance.',
-                    textAlign: TextAlign.center,
-                    style: theme.textTheme.bodyMedium?.copyWith(
-                      color: theme.colorScheme.outline,
+                  BrandPanel(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Icon(
+                          Icons.devices_rounded,
+                          size: 36,
+                          color: Color(0xFF8DE4D5),
+                        ),
+                        const SizedBox(height: 24),
+                        Text(
+                          'Home PCs',
+                          style: theme.textTheme.headlineMedium?.copyWith(
+                            color: Colors.white,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          'A clear view of your home computers.',
+                          style: theme.textTheme.bodyMedium?.copyWith(
+                            color: const Color(0xFFD5E3EC),
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                   const SizedBox(height: 32),
+                  Text(
+                    _isSignup ? 'Create your account' : 'Welcome back',
+                    style: theme.textTheme.titleLarge,
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    _isSignup
+                        ? 'Keep your family computers together in one place.'
+                        : 'Sign in to view activity and manage computer access.',
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                  const SizedBox(height: 24),
                   TextFormField(
                     controller: _email,
                     keyboardType: TextInputType.emailAddress,
@@ -166,6 +179,7 @@ class _LoginScreenState extends State<LoginScreen> {
             ),
           ),
         ),
+      ),
       ),
     );
   }

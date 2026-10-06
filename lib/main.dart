@@ -28,10 +28,8 @@ class PCStatusApp extends StatelessWidget {
   }
 }
 
-/// Friendly seed colour used across the app.
-const Color kBrandColor = Color(0xFF4C6EF5);
+const Color kBrandColor = Color(0xFF087F8C);
 
-/// Builds a warm, rounded, family-friendly Material 3 theme.
 ThemeData buildAppTheme(Brightness brightness) {
   final scheme = ColorScheme.fromSeed(
     seedColor: kBrandColor,
@@ -39,35 +37,62 @@ ThemeData buildAppTheme(Brightness brightness) {
   );
   final isLight = brightness == Brightness.light;
   final base = ThemeData(colorScheme: scheme, useMaterial3: true);
+  final textTheme = base.textTheme.apply(
+    bodyColor: scheme.onSurface,
+    displayColor: scheme.onSurface,
+  );
 
   return base.copyWith(
+    textTheme: textTheme.copyWith(
+      headlineMedium: textTheme.headlineMedium?.copyWith(
+        fontWeight: FontWeight.w700,
+        letterSpacing: -0.8,
+      ),
+      titleLarge: textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700),
+      titleMedium: textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600),
+      bodyLarge: textTheme.bodyLarge?.copyWith(height: 1.5),
+      bodyMedium: textTheme.bodyMedium?.copyWith(height: 1.5),
+    ),
     scaffoldBackgroundColor: isLight
-        ? const Color(0xFFF5F6FB)
-        : const Color(0xFF14151A),
+        ? const Color(0xFFF3F6F9)
+        : const Color(0xFF101923),
     appBarTheme: AppBarTheme(
-      centerTitle: true,
+      centerTitle: false,
       elevation: 0,
       scrolledUnderElevation: 0,
-      backgroundColor: Colors.transparent,
+      backgroundColor: isLight
+          ? const Color(0xFFF3F6F9)
+          : const Color(0xFF101923),
       foregroundColor: scheme.onSurface,
       titleTextStyle: base.textTheme.titleLarge?.copyWith(
         fontWeight: FontWeight.w700,
-        letterSpacing: 0.2,
+        letterSpacing: -0.4,
       ),
     ),
     cardTheme: CardThemeData(
       elevation: 0,
-      color: isLight ? Colors.white : scheme.surfaceContainerHigh,
+      color: isLight ? Colors.white : const Color(0xFF192633),
       surfaceTintColor: Colors.transparent,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(20),
+        side: BorderSide(color: scheme.outlineVariant.withValues(alpha: 0.5)),
+      ),
       margin: EdgeInsets.zero,
     ),
     filledButtonTheme: FilledButtonThemeData(
       style: FilledButton.styleFrom(
         minimumSize: const Size(0, 54),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
         textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
       ),
+    ),
+    outlinedButtonTheme: OutlinedButtonThemeData(
+        style: OutlinedButton.styleFrom(
+          minimumSize: const Size(0, 54),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+          side: BorderSide(color: scheme.outlineVariant),
+          textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+        ),
     ),
     textButtonTheme: TextButtonThemeData(
       style: TextButton.styleFrom(
@@ -75,8 +100,10 @@ ThemeData buildAppTheme(Brightness brightness) {
       ),
     ),
     floatingActionButtonTheme: FloatingActionButtonThemeData(
-      elevation: 2,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+      elevation: 0,
+      backgroundColor: scheme.primary,
+      foregroundColor: scheme.onPrimary,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
     ),
     snackBarTheme: SnackBarThemeData(
       behavior: SnackBarBehavior.floating,
@@ -84,7 +111,7 @@ ThemeData buildAppTheme(Brightness brightness) {
     ),
     inputDecorationTheme: InputDecorationTheme(
       filled: true,
-      fillColor: isLight ? Colors.white : scheme.surfaceContainerHigh,
+      fillColor: isLight ? const Color(0xFFF8FAFC) : const Color(0xFF192633),
       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
       border: OutlineInputBorder(
         borderRadius: BorderRadius.circular(16),

@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../state/app_state.dart';
 import '../widgets/auto_refresh.dart';
 import '../widgets/device_card.dart';
+import '../widgets/screen_layout.dart';
 import 'device_history_screen.dart';
 import 'pair_screen.dart';
 import 'lock_screen.dart';
@@ -63,7 +64,9 @@ class _DashboardScreenState extends State<DashboardScreen>
         icon: const Icon(Icons.add_rounded),
         label: const Text('Add computer'),
       ),
-      body: RefreshIndicator(
+      body: ScreenLayout(
+        maxWidth: 760,
+        child: RefreshIndicator(
         onRefresh: () => context.read<AppState>().refreshDevices(),
         child: Column(
           children: [
@@ -73,11 +76,12 @@ class _DashboardScreenState extends State<DashboardScreen>
                 child: Text(
                   'Could not update: ${state.error}',
                   style: TextStyle(color: Theme.of(context).colorScheme.error),
+                  ),
                 ),
-              ),
             Expanded(child: _buildBody(context, state)),
           ],
         ),
+      ),
       ),
     );
   }
@@ -91,8 +95,10 @@ class _DashboardScreenState extends State<DashboardScreen>
       // ListView keeps pull-to-refresh working even when empty.
       return ListView(
         physics: const AlwaysScrollableScrollPhysics(),
+        padding: const EdgeInsets.fromLTRB(24, 32, 24, 120),
         children: [
-          SizedBox(height: MediaQuery.of(context).size.height * 0.18),
+          _Overview(state: state),
+          const SizedBox(height: 48),
           Center(
             child: Container(
               width: 120,
@@ -127,20 +133,30 @@ class _DashboardScreenState extends State<DashboardScreen>
                   : 'Tap “Add computer” below and scan the QR code shown on the computer you want to watch.',
               textAlign: TextAlign.center,
               style: theme.textTheme.bodyLarge?.copyWith(
-                color: theme.colorScheme.outline,
+                color: theme.colorScheme.onSurfaceVariant,
               ),
             ),
           ),
         ],
       );
     }
-    return ListView.builder(
+    return ListView(
       physics: const AlwaysScrollableScrollPhysics(),
-      padding: const EdgeInsets.only(top: 12, bottom: 96),
-      itemCount: state.devices.length,
-      itemBuilder: (_, i) {
-        final device = state.devices[i];
-        return DeviceCard(
+      padding: const EdgeInsets.fromLTRB(20, 12, 20, 120),
+      children: [
+        _Overview(state: state),
+        const SizedBox(height: 28),
+        Text('Your devices', style: theme.textTheme.titleLarge),
+        const SizedBox(height: 6),
+        Text(
+          'Select a computer to view its activity or manage access.',
+          style: theme.textTheme.bodyMedium?.copyWith(
+            color: theme.colorScheme.onSurfaceVariant,
+          ),
+        ),
+        const SizedBox(height: 18),
+        for (final device in state.devices)
+          DeviceCard(
           device: device,
           onDelete: () => _confirmRemove(device.id, device.name),
           onLock: () async {
@@ -157,8 +173,8 @@ class _DashboardScreenState extends State<DashboardScreen>
             );
             if (mounted) await refreshContent();
           },
-        );
-      },
+          ),
+      ],
     );
   }
 
@@ -200,3 +216,80 @@ class _DashboardScreenState extends State<DashboardScreen>
     }
   }
 }
+
+class _Overview extends StatelessWidget {
+    const _Overview({required this.state});
+
+    final AppState state;
+
+    @override
+    Widget build(BuildContext context) {
+      final online = state.devices.where((device) => device.isOnline).length;
+      final textTheme = Theme.of(context).textTheme;
+      return BrandPanel(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Icon(Icons.desktop_windows_rounded, color: Color(0xFF8DE4D5)),
+            const SizedBox(height: 20),
+            Text(
+              'Home PCs',
+              style: textTheme.headlineMedium?.copyWith(color: Colors.white),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Your computers, at a glance.',
+              style: textTheme.bodyMedium?.copyWith(color: const Color(0xFFD5E3EC)),
+            ),
+            const SizedBox(height: 24),
+            Wrap(
+              spacing: 28,
+              runSpacing: 16,
+              children: [
+                _OverviewMetric(label: 'Computers', value: '${state.devices.length}'),
+                _OverviewMetric(label: 'Online now', value: '$online'),
+                _OverviewMetric(
+                  label: 'Offline now',
+                  value: '${state.devices.length - online}',
+                ),
+              ],
+            ),
+            if (state.error != null || state.loading) ...[
+              const SizedBox(height: 16),
+              Text(
+                state.error != null
+                    ? 'Update failed. Showing last known status.'
+                    : 'Updating status...',
+                style: textTheme.bodySmall?.copyWith(color: const Color(0xFFD5E3EC)),
+              ),
+            ],
+          ],
+        ),
+      );
+    }
+  }
+
+  class _OverviewMetric extends StatelessWidget {
+    const _OverviewMetric({required this.label, required this.value});
+
+    final String label;
+    final String value;
+
+    @override
+    Widget build(BuildContext context) {
+      final textTheme = Theme.of(context).textTheme;
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            value,
+            style: textTheme.headlineMedium?.copyWith(color: const Color(0xFF8DE4D5)),
+          ),
+          Text(
+            label,
+            style: textTheme.bodySmall?.copyWith(color: const Color(0xFFD5E3EC)),
+          ),
+        ],
+      );
+    }
+  }

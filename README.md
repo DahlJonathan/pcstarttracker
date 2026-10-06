@@ -96,19 +96,45 @@ go run . run
 go build -o pc-agent.exe .
 ```
 
-Install as a background Windows service (run in an **Administrator** prompt):
+Install as a background Windows service by double-clicking
+[`Install-Agent.bat`](agent/Install-Agent.bat) and approving the Windows
+administrator prompt. No terminal commands are required; PowerShell is used
+internally. Extract the ZIP before running it.
+
+Alternatively, from a PowerShell prompt:
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File .\install.ps1
 ```
 
-Keep `install.ps1` and the newly built `pc-agent.exe` together.
+Keep `Install-Agent.bat`, `install.ps1`, `uninstall.ps1`,
+`installer_support.ps1`, and the newly built `pc-agent.exe` together.
 The installer pairs once, stops an existing service if needed, copies the binary
 to `%ProgramData%\PCStatusAgent\pc-agent.exe`, registers or updates an automatic
 (not delayed) service, and checks that it reaches Running. Failures stop the
 installer instead of reporting success. Running the installer again **preserves
 pairing and server history**. Administrator commands `pc-agent stop` and
 `pc-agent uninstall` remove the service; `pc-agent reset` clears local pairing.
+
+### Uninstall without a terminal
+
+Open **Windows Settings > Apps > Installed apps** (Windows 10: **Apps & features**),
+find **PC Status Agent**, and choose **Uninstall**. Confirm the removal and approve
+the administrator prompt. The uninstaller stops the service, waits for it to
+stop, removes its registration, then deletes the installed agent, local pairing
+data, parental-lock recovery settings, and logs. Service failures stop the
+uninstall before deleting data and are shown in a dialog.
+
+Cloud history is not deleted. The phone app still lists the computer as offline;
+choose **Remove** on its card if you also want to remove it from the account.
+Reinstalling after uninstall requires pairing and recovery-password setup again.
+
+Existing installations made with older installers do not yet appear in Windows
+Settings. Extract the updated `pc-agent-locking.zip` and run `Install-Agent.bat`
+once to add the uninstall entry; existing pairing and history are preserved
+during this update. The uninstaller scripts are stored under
+`%ProgramFiles%\PCStatusAgent`, so the downloaded ZIP is not needed afterwards.
+If removal fails partway through, the ZIP also includes `uninstall.ps1` for retry.
 
 The service restarts automatically after unexpected failures. Startup errors,
 telemetry failures, and Go crash output are recorded in
@@ -173,6 +199,47 @@ when the app returns to the foreground. Pull-to-refresh remains available.
 Polling pauses in the background and does not overlap in-flight refreshes.
 Connection failures are shown rather than silently replacing existing data.
 
+### Mobile interface
+
+The app uses a consistent navy-and-teal Material 3 design, with light and dark
+themes following the phone's appearance setting. The dashboard summarizes paired,
+online, and offline computers; device cards retain activity, parental lock, and
+removal actions. Login, pairing, history, and lock screens share the same visual
+language. Content respects safe areas and has a bounded width on larger screens;
+forms and pairing content scroll on smaller screens or when the keyboard opens.
+Status labels remain visible alongside color indicators.
+
+Shared layout components: [`lib/src/widgets/screen_layout.dart`](lib/src/widgets/screen_layout.dart).
+Responsive UI tests: [`test/ui_layout_test.dart`](test/ui_layout_test.dart).
+
+### Android 16 KB page-size compatibility
+
+Keep `mobile_scanner` at 7.4.2 or newer within the supported major version.
+Older scanner versions bundle ML Kit and CameraX native libraries with 4 KB
+ELF alignment, which trigger Android's compatibility-mode warning. The scanner
+model remains bundled, so scanning does not require a first-use model download.
+Use Flutter 3.29 or newer, Android Gradle Plugin 8.5.1 or newer, and NDK r28 or
+newer. The project's current Flutter/Android toolchain meets these requirements.
+Do not suppress the warning or enable legacy packaging as a substitute for
+updating incompatible libraries.
+
+After changing native dependencies, rebuild and reinstall the APK; hot reload
+does not replace native libraries:
+
+```powershell
+flutter pub get
+flutter build apk --debug
+.\tools\Test-Android16KB.ps1 `
+  -ApkPath .\build\app\outputs\flutter-apk\app-debug.apk `
+  -ZipAlignPath "$env:LOCALAPPDATA\Android\sdk\build-tools\36.0.0\zipalign.exe"
+```
+
+The check validates every ARM64/x86-64 ELF `LOAD` segment against 16,384-byte
+alignment and runs Android's `zipalign -c -P 16 4` against the APK. It exits with
+an error if either check fails. Also run it against the release APK before
+distribution. On a 16 KB emulator, `adb shell getconf PAGE_SIZE` must report
+`16384`; install the rebuilt APK and verify launch and QR pairing there.
+
 ---
 
 ## Notes & production hardening
@@ -184,8 +251,10 @@ Database setup automatically adds `device_locks` without changing existing
 device/history tables. Keep Railway's database on the existing persistent volume.
 
 1. Build the Windows agent: `cd agent; go build -o pc-agent.exe .`.
-2. Run the new PowerShell installer from an Administrator prompt:
-   `powershell -NoProfile -ExecutionPolicy Bypass -File .\install.ps1`.
+2. Extract `pc-agent-locking.zip` and double-click `Install-Agent.bat`.
+   Approve the Windows administrator prompt; no manual PowerShell commands are
+   required. Alternatively, run `powershell -NoProfile -ExecutionPolicy Bypass
+   -File .\install.ps1`.
    This preserves existing pairing and does not depend on the older batch files.
 3. In the phone app, choose **Parental lock** on a computer card. Set and repeat
    a separate recovery password (8 to 72 UTF-8 bytes). Keep it somewhere safe.

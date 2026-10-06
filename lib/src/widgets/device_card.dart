@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../models/device.dart';
+import 'screen_layout.dart';
 
 /// A dashboard card showing one PC's name, status indicator and timestamps.
 class DeviceCard extends StatelessWidget {
@@ -21,37 +22,40 @@ class DeviceCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final online = device.isOnline;
-    final color = online ? const Color(0xFF22C55E) : const Color(0xFF94A3B8);
+    final color = activityColor(context, active: online);
     final label = online ? 'On' : 'Offline';
 
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 7),
+      padding: const EdgeInsets.only(bottom: 14),
       child: Card(
         child: InkWell(
           onTap: onTap,
-          borderRadius: BorderRadius.circular(22),
+          borderRadius: BorderRadius.circular(20),
           child: Padding(
             padding: const EdgeInsets.all(18),
-            child: Row(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                _ComputerAvatar(color: color, online: online),
-                const SizedBox(width: 16),
-                Expanded(
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _ComputerAvatar(color: color, online: online),
+                    const SizedBox(width: 14),
+                    Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Row(
-                        children: [
-                          Expanded(
-                            child: Text(
+                      Text(
                               device.name,
                               style: theme.textTheme.titleMedium?.copyWith(
                                 fontWeight: FontWeight.w700,
                               ),
-                              overflow: TextOverflow.ellipsis,
                             ),
-                          ),
+                      const SizedBox(height: 8),
                           _StatusPill(label: label, color: color),
+                    ],
+                  ),
+                    ),
                           if (onDelete != null)
                             PopupMenuButton<String>(
                               icon: const Icon(Icons.more_vert),
@@ -73,9 +77,9 @@ class DeviceCard extends StatelessWidget {
                                 ),
                               ],
                             ),
-                        ],
-                      ),
-                      const SizedBox(height: 6),
+                  ],
+                ),
+                      const SizedBox(height: 18),
                       Text(
                         device.statusDetail,
                         style: theme.textTheme.bodyMedium,
@@ -85,12 +89,25 @@ class DeviceCard extends StatelessWidget {
                         Text(
                           device.exactTimestamp,
                           style: theme.textTheme.bodySmall?.copyWith(
-                            color: theme.colorScheme.outline,
+                            color: theme.colorScheme.onSurfaceVariant,
                           ),
                         ),
                       ],
-                      if (onLock != null) ...[
+                      if (onLock != null || onTap != null) ...[
+                        const SizedBox(height: 16),
+                        const Divider(height: 1),
                         const SizedBox(height: 8),
+                        Wrap(
+                          spacing: 8,
+                          runSpacing: 4,
+                          children: [
+                        if (onTap != null)
+                          TextButton.icon(
+                            onPressed: onTap,
+                            icon: const Icon(Icons.history_rounded, size: 20),
+                            label: const Text('Activity'),
+                          ),
+                        if (onLock != null)
                         TextButton.icon(
                           onPressed: onLock,
                           icon: Icon(
@@ -100,10 +117,9 @@ class DeviceCard extends StatelessWidget {
                           ),
                           label: Text(device.lock?.summary ?? 'Parental lock'),
                         ),
+                          ],
+                        ),
                       ],
-                    ],
-                  ),
-                ),
               ],
             ),
           ),
@@ -155,14 +171,10 @@ class _StatusDot extends StatelessWidget {
       decoration: BoxDecoration(
         color: color,
         shape: BoxShape.circle,
-        border: Border.all(color: Colors.white, width: 2),
-        boxShadow: [
-          BoxShadow(
-            color: color.withValues(alpha: 0.5),
-            blurRadius: 6,
-            spreadRadius: 0.5,
-          ),
-        ],
+        border: Border.all(
+          color: Theme.of(context).colorScheme.surface,
+          width: 2,
+        ),
       ),
     );
   }

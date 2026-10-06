@@ -6,6 +6,7 @@ import '../models/device.dart';
 import '../models/device_event.dart';
 import '../state/app_state.dart';
 import '../widgets/auto_refresh.dart';
+import '../widgets/screen_layout.dart';
 
 /// Shows one device's boot/shutdown history, grouped by day.
 class DeviceHistoryScreen extends StatefulWidget {
@@ -71,42 +72,44 @@ class _DeviceHistoryScreenState extends State<DeviceHistoryScreen>
           ),
         ],
       ),
-      body: Column(
-        children: [
-          if (_refreshError != null)
-            Padding(
-              padding: const EdgeInsets.all(12),
-              child: Text(
-                _refreshError!,
-                style: TextStyle(color: Theme.of(context).colorScheme.error),
+      body: ScreenLayout(
+        child: Column(
+          children: [
+            if (_refreshError != null)
+              Padding(
+                padding: const EdgeInsets.all(12),
+                child: Text(
+                  _refreshError!,
+                  style: TextStyle(color: Theme.of(context).colorScheme.error),
+                ),
+              ),
+            Expanded(
+              child: RefreshIndicator(
+                onRefresh: _refresh,
+                child: FutureBuilder<List<DeviceEvent>>(
+                  future: _future,
+                  builder: (context, snapshot) {
+                    if (snapshot.connectionState == ConnectionState.waiting) {
+                      return const Center(child: CircularProgressIndicator());
+                    }
+                    if (snapshot.hasError) {
+                      return _message(
+                        'Could not load history. Pull down to retry.',
+                      );
+                    }
+                    final events = snapshot.data ?? const [];
+                    if (events.isEmpty) {
+                      return _message(
+                        'Nothing here yet.\nActivity will show up once the computer turns on or off.',
+                      );
+                    }
+                    return _buildList(context, events);
+                  },
+                ),
               ),
             ),
-          Expanded(
-            child: RefreshIndicator(
-              onRefresh: _refresh,
-              child: FutureBuilder<List<DeviceEvent>>(
-                future: _future,
-                builder: (context, snapshot) {
-                  if (snapshot.connectionState == ConnectionState.waiting) {
-                    return const Center(child: CircularProgressIndicator());
-                  }
-                  if (snapshot.hasError) {
-                    return _message(
-                      'Could not load history. Pull down to retry.',
-                    );
-                  }
-                  final events = snapshot.data ?? const [];
-                  if (events.isEmpty) {
-                    return _message(
-                      'Nothing here yet.\nActivity will show up once the computer turns on or off.',
-                    );
-                  }
-                  return _buildList(context, events);
-                },
-              ),
-            ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -125,16 +128,26 @@ class _DeviceHistoryScreenState extends State<DeviceHistoryScreen>
 
     return ListView.builder(
       physics: const AlwaysScrollableScrollPhysics(),
-      padding: const EdgeInsets.only(bottom: 24),
-      itemCount: days.length,
+      padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
+      itemCount: days.length + 1,
       itemBuilder: (_, i) {
-        final day = days[i];
+        if (i == 0) {
+          return const Padding(
+            padding: EdgeInsets.only(bottom: 12),
+            child: SectionHeader(
+              title: 'Computer activity',
+              subtitle: 'Power events reported by your computer, newest first.',
+              icon: Icons.history_rounded,
+            ),
+          );
+        }
+        final day = days[i - 1];
         final dayEvents = groups[day]!;
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Padding(
-              padding: const EdgeInsets.fromLTRB(16, 20, 16, 8),
+              padding: const EdgeInsets.only(top: 20, bottom: 12),
               child: Text(
                 _dayLabel(day),
                 style: Theme.of(
@@ -142,8 +155,17 @@ class _DeviceHistoryScreenState extends State<DeviceHistoryScreen>
                 ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
               ),
             ),
-            ...dayEvents.map((e) => _EventTile(event: e)),
-            const Divider(height: 1),
+            Card(
+              child: Column(
+                children: [
+                  for (var index = 0; index < dayEvents.length; index++) ...[
+                    if (index > 0)
+                      const Divider(height: 1, indent: 72, endIndent: 16),
+                    _EventTile(event: dayEvents[index]),
+                  ],
+                ],
+              ),
+            ),
           ],
         );
       },
@@ -178,7 +200,7 @@ class _EventTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final boot = event.isBoot;
-    final color = boot ? const Color(0xFF22C55E) : const Color(0xFF94A3B8);
+    final color = activityColor(context, active: boot);
     return ListTile(
       leading: Container(
         width: 42,
@@ -196,9 +218,11 @@ class _EventTile extends StatelessWidget {
         boot ? 'Turned on' : 'Turned off',
         style: const TextStyle(fontWeight: FontWeight.w600),
       ),
-      trailing: Text(
+      subtitle: Text(
         event.time,
-        style: Theme.of(context).textTheme.titleMedium,
+        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+          color: Theme.of(context).colorScheme.onSurfaceVariant,
+        ),
       ),
     );
   }

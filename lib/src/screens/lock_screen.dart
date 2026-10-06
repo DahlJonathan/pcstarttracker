@@ -7,6 +7,7 @@ import '../api/api_client.dart';
 import '../models/device.dart';
 import '../state/app_state.dart';
 import '../widgets/auto_refresh.dart';
+import '../widgets/screen_layout.dart';
 
 class LockScreen extends StatefulWidget {
   const LockScreen({super.key, required this.device});
@@ -89,33 +90,32 @@ class _LockScreenState extends State<LockScreen>
     final lock = device.lock;
     final theme = Theme.of(context);
     return Scaffold(
-      appBar: AppBar(title: Text('${device.name} - parental lock')),
-      body: Center(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 560),
+      appBar: AppBar(title: const Text('Parental lock')),
+      body: ScreenLayout(
+          maxWidth: 560,
           child: ListView(
             padding: const EdgeInsets.all(20),
             children: [
-              Icon(
-                lock?.appliedLocked == true
+              SectionHeader(
+                title: device.name,
+                subtitle: 'Manage access and recovery for this computer.',
+                icon: lock?.appliedLocked == true
                     ? Icons.lock_rounded
                     : Icons.lock_open_rounded,
-                size: 64,
-                color: theme.colorScheme.primary,
               ),
-              const SizedBox(height: 16),
-              Text(
+              const SizedBox(height: 24),
+              Card(
+                child: Padding(
+                  padding: const EdgeInsets.all(20),
+                  child: Text(
                 lock?.summary ?? 'Update the server to enable parental locking',
-                textAlign: TextAlign.center,
-                style: theme.textTheme.titleLarge,
+                style: theme.textTheme.titleMedium?.copyWith(
+                  color: theme.colorScheme.primary,
+                ),
+                  ),
+                ),
               ),
               const SizedBox(height: 12),
-              const Text(
-                'This is a family usage restriction, not an unbreakable Windows security lock. '
-                'The shared Windows user can bypass it with administrator tools.\n\n'
-                'Commands need an internet connection. Once received, a lock stays active '
-                'offline and after restarting. Keep the recovery password somewhere safe.',
-              ),
               if (!device.isOnline)
                 const Padding(
                   padding: EdgeInsets.only(top: 12),
@@ -277,7 +277,6 @@ class _LockScreenState extends State<LockScreen>
             ],
           ),
         ),
-      ),
     );
   }
 }

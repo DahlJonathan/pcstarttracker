@@ -90,6 +90,7 @@ void main() {
     await tester.scrollUntilVisible(
       find.byKey(const Key('recovery-password')),
       200,
+      scrollable: find.byType(Scrollable).first,
     );
     await tester.enterText(
       find.byKey(const Key('recovery-password')),
